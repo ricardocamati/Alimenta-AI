@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from auth import auth_router
 from database import Base, engine
+from doacoes import doacoes_router
 
 
 @asynccontextmanager
@@ -29,8 +30,14 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(doacoes_router)
 
 
 @app.get("/")
 def root():
     return {"message": "Alimenta.AI API"}
+
+
+@app.post("/ml/urgencia")
+async def ml_urgencia_stub():
+    return {"status": "received", "message": "ML urgencia endpoint — stub"}

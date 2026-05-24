@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session, selectinload
 
 from auth.schemas import LoginRequest, TokenResponse, UsuarioCreate, UsuarioResponse
 from auth.service import authenticate, register
 from auth.utils import create_access_token, decode_access_token
-from database.connection import get_db
+from database.connection import async_get_db, get_db
 from database.models import Usuario
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -30,6 +32,33 @@ def get_current_user(
         .filter(Usuario.id == int(user_id))
         .first()
     )
+    if usuario is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuário não encontrado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return usuario
+
+
+async def get_current_user_async(
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(async_get_db),
+) -> Usuario:
+    payload = decode_access_token(token)
+    user_id: str | None = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido ou expirado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    result = await db.execute(
+        select(Usuario)
+        .options(selectinload(Usuario.ong))
+        .where(Usuario.id == int(user_id))
+    )
+    usuario = result.scalar_one_or_none()
     if usuario is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
