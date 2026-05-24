@@ -64,7 +64,7 @@ O fluxo completo da doação — desde o cadastro do alimento até a confirmaç�
 | **Backend** | Python, FastAPI |
 | **ML - Oferta** | Scikit-learn (Random Forest, Gradient Boosting) |
 | **ML - Demanda** | statsforecast — Nixtla (AutoETS, AutoARIMA, AutoTheta) |
-| **Banco de Dados** | PostgreSQL |
+| **Banco de Dados** | SQLite |
 | **Gerenciamento** | Jira |
 | **Versionamento** | Git / GitHub |
 
