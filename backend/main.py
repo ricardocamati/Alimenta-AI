@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -7,11 +8,26 @@ from auth import auth_router
 from database import Base, engine
 from doacoes import doacoes_router
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("Iniciando Alimenta.AI...")
     Base.metadata.create_all(bind=engine)
+
+    from ml.predictor import init_predictor
+
+    init_predictor()
+
+    logger.info("Startup concluído.")
     yield
+    logger.info("Encerrando Alimenta.AI.")
 
 
 app = FastAPI(
@@ -36,8 +52,3 @@ app.include_router(doacoes_router)
 @app.get("/")
 def root():
     return {"message": "Alimenta.AI API"}
-
-
-@app.post("/ml/urgencia")
-async def ml_urgencia_stub():
-    return {"status": "received", "message": "ML urgencia endpoint — stub"}

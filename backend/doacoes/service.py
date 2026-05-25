@@ -1,12 +1,19 @@
+import logging
+from datetime import date
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from database.models import Doacao, LogAFD, StatusDoacao
+from database.models import Doacao, LogAFD, StatusDoacao, Urgencia
 from doacoes.schemas import DoacaoCreate
 
+logger = logging.getLogger(__name__)
 
-async def criar_doacao(db: AsyncSession, payload: DoacaoCreate, doador_id: int) -> Doacao:
+
+async def criar_doacao(
+    db: AsyncSession, payload: DoacaoCreate, doador_id: int
+) -> Doacao:
     doacao = Doacao(
         doador_id=doador_id,
         tipo_alimento=payload.tipo_alimento,
@@ -28,6 +35,48 @@ async def criar_doacao(db: AsyncSession, payload: DoacaoCreate, doador_id: int) 
         descricao="Doação cadastrada pelo doador",
     )
     db.add(log)
+    logger.info("Doação %s cadastrada pelo doador %s", doacao.id, doador_id)
+
+    dias_ate_vencimento = (payload.data_validade - date.today()).days
+    logger.info(
+        "Doação %s: dias_ate_vencimento=%s (validade=%s)",
+        doacao.id,
+        dias_ate_vencimento,
+        payload.data_validade,
+    )
+
+    from ml.predictor import UrgencyPredictor
+
+    urgencia_predita = UrgencyPredictor.predict(
+        tipo_alimento=payload.tipo_alimento,
+        categoria=payload.categoria,
+        dias_ate_vencimento=dias_ate_vencimento,
+    )
+
+    try:
+        doacao.urgencia = Urgencia(urgencia_predita)
+    except ValueError:
+        logger.warning(
+            "Doação %s: urgência '%s' inválida, usando 'baixa'",
+            doacao.id,
+            urgencia_predita,
+        )
+        doacao.urgencia = Urgencia.baixa
+
+    doacao.status = StatusDoacao.analisado
+    log_transicao = LogAFD(
+        doacao_id=doacao.id,
+        estado_anterior=StatusDoacao.cadastrado.value,
+        estado_novo=StatusDoacao.analisado.value,
+        descricao="Análise de urgência realizada pelo motor de ML",
+    )
+    db.add(log_transicao)
+    logger.info(
+        "Doação %s: transição cadastrado → analisado (urgência=%s)",
+        doacao.id,
+        doacao.urgencia.value,
+    )
+
     await db.commit()
     await db.refresh(doacao)
     return doacao

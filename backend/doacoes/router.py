@@ -1,12 +1,15 @@
-import httpx
+import logging
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth.router import get_current_user_async, oauth2_scheme
+from auth.router import get_current_user_async
 from database.connection import async_get_db
 from database.models import TipoUsuario, Usuario
 from doacoes.schemas import DoacaoCreate, DoacaoDetailedResponse, DoacaoResponse
 from doacoes.service import buscar_doacao_por_id, criar_doacao, listar_doacoes
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/doacoes", tags=["doacoes"])
 
@@ -22,16 +25,8 @@ def require_doador(
     return current_user
 
 
-async def trigger_ml_urgencia(doacao_id: int):
-    async with httpx.AsyncClient() as client:
-        try:
-            await client.post(
-                "http://localhost:8000/ml/urgencia",
-                json={"doacao_id": doacao_id},
-                timeout=5.0,
-            )
-        except Exception:
-            pass
+async def trigger_calcular_matching(doacao_id: int):
+    logger.info("BackgroundTask: calcular_matching(doacao_id=%s) [AA-36 pendente]", doacao_id)
 
 
 @router.post(
@@ -44,7 +39,7 @@ async def criar_doacao_endpoint(
     db: AsyncSession = Depends(async_get_db),
 ):
     doacao = await criar_doacao(db, payload, current_user.id)
-    background_tasks.add_task(trigger_ml_urgencia, doacao.id)
+    background_tasks.add_task(trigger_calcular_matching, doacao.id)
     return doacao
 
 
