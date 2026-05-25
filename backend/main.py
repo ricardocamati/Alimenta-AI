@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from auth import auth_router
 from database import Base, engine
+from dashboard import dashboard_router
 from doacoes import doacoes_router
 
 logging.basicConfig(
@@ -49,6 +50,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(doacoes_router)
+app.include_router(dashboard_router)
 
 
 @app.get("/")
