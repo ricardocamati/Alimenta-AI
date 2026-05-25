@@ -81,8 +81,8 @@ class Doacao(Base):
     quantidade: Mapped[float] = mapped_column(Float, nullable=False)
     foto_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     data_validade: Mapped[date] = mapped_column(Date, nullable=False)
-    latitude: Mapped[float] = mapped_column(Float, nullable=False)
-    longitude: Mapped[float] = mapped_column(Float, nullable=False)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     status: Mapped[StatusDoacao] = mapped_column(
         Enum(StatusDoacao, name="status_doacao_enum"),
         default=StatusDoacao.cadastrado,
