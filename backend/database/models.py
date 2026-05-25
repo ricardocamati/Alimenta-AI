@@ -94,6 +94,9 @@ class Doacao(Base):
         default=Urgencia.baixa,
         nullable=False,
     )
+    ong_matched_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("ongs.id", ondelete="SET NULL"), nullable=True
+    )
     score_matching: Mapped[float | None] = mapped_column(Float, nullable=True)
     criado_em: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
@@ -104,6 +107,9 @@ class Doacao(Base):
 
     doador: Mapped["Usuario"] = relationship(
         "Usuario", back_populates="doacoes", foreign_keys=[doador_id]
+    )
+    ong_matched: Mapped["ONG | None"] = relationship(
+        "ONG", foreign_keys=[ong_matched_id]
     )
     logs: Mapped[list["LogAFD"]] = relationship(
         "LogAFD", back_populates="doacao", cascade="all, delete-orphan"

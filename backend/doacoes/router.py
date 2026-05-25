@@ -4,7 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, s
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth.router import get_current_user_async
-from database.connection import async_get_db
+from database.connection import async_get_db, AsyncSessionLocal
 from database.models import TipoUsuario, Usuario
 from doacoes.schemas import DoacaoCreate, DoacaoDetailedResponse, DoacaoResponse
 from doacoes.service import buscar_doacao_por_id, criar_doacao, listar_doacoes
@@ -26,7 +26,14 @@ def require_doador(
 
 
 async def trigger_calcular_matching(doacao_id: int):
-    logger.info("BackgroundTask: calcular_matching(doacao_id=%s) [AA-36 pendente]", doacao_id)
+    from matching.service import calcular_matching
+
+    logger.info("BackgroundTask: calcular_matching(%s) iniciado", doacao_id)
+    async with AsyncSessionLocal() as db:
+        try:
+            await calcular_matching(doacao_id, db)
+        except Exception:
+            logger.exception("BackgroundTask: calcular_matching(%s) falhou", doacao_id)
 
 
 @router.post(
