@@ -22,17 +22,19 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
 
     from ml.predictor import init_predictor
+    from ml.demand_predictor import init_demand_predictor
 
     init_predictor()
+    init_demand_predictor()
 
-    logger.info("Startup concluído.")
+    logger.info("Startup concluido.")
     yield
     logger.info("Encerrando Alimenta.AI.")
 
 
 app = FastAPI(
     title="Alimenta.AI",
-    description="Sistema preditivo de redistribuição inteligente de alimentos com Machine Learning",
+    description="Sistema preditivo de redistribuicao inteligente de alimentos com Machine Learning",
     version="0.1.0",
     lifespan=lifespan,
 )
