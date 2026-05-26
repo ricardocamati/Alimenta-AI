@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth.router import get_current_user_async
+from auth.router import get_current_user_with_ong
 from database.connection import async_get_db
 from database.models import TipoUsuario, Usuario
 from dashboard.schemas import DashboardResponse
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 @router.get("/", response_model=DashboardResponse)
 async def dashboard_endpoint(
-    current_user: Usuario = Depends(get_current_user_async),
+    current_user: Usuario = Depends(get_current_user_with_ong),
     db: AsyncSession = Depends(async_get_db),
 ):
     if current_user.tipo == TipoUsuario.doador:

@@ -1,7 +1,7 @@
 import logging
 import math
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import Doacao, LogAFD, ONG, ScoreMatching, StatusDoacao, Urgencia
@@ -30,7 +30,7 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
-def _normalizar(valores: list[float]) -> list[float]:
+def _normalize(valores: list[float]) -> list[float]:
     mn = min(valores)
     mx = max(valores)
     if mx == mn:
@@ -45,6 +45,14 @@ async def calcular_matching(doacao_id: int, db: AsyncSession) -> None:
     doacao = result.scalar_one_or_none()
     if doacao is None:
         logger.warning("[Matching] Doacao %s nao encontrada", doacao_id)
+        return
+
+    if doacao.status != StatusDoacao.analisado:
+        logger.warning(
+            "[Matching] Doacao %s ja esta no estado '%s'. Ignorando.",
+            doacao_id,
+            doacao.status.value,
+        )
         return
 
     logger.info(
@@ -81,8 +89,12 @@ async def calcular_matching(doacao_id: int, db: AsyncSession) -> None:
     demandas = [DemandPredictor.predict_demand(ong.id) for ong in ongs]
     distancias = [haversine(doacao_lat, doacao_lon, ong.latitude, ong.longitude) for ong in ongs]
 
-    demandas_norm = _normalizar(demandas)
-    distancias_norm = _normalizar(distancias)
+    demandas_norm = _normalize(demandas)
+    distancias_norm = _normalize(distancias)
+
+    await db.execute(
+        delete(ScoreMatching).where(ScoreMatching.doacao_id == doacao_id)
+    )
 
     scores: list[tuple[ONG, float, float, float, float]] = []
     for i, ong in enumerate(ongs):
@@ -114,8 +126,6 @@ async def calcular_matching(doacao_id: int, db: AsyncSession) -> None:
                 score_final=sf,
             )
         )
-
-    await db.commit()
 
     melhor_ong, _, _, _, melhor_score = max(scores, key=lambda x: x[4])
     doacao.ong_matched_id = melhor_ong.id

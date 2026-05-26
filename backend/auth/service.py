@@ -4,6 +4,8 @@ from auth.schemas import UsuarioCreate
 from auth.utils import hash_password, verify_password
 from database.models import ONG, Usuario
 
+__all__ = ["register", "authenticate"]
+
 
 def register(db: Session, payload: UsuarioCreate) -> Usuario:
     usuario = Usuario(

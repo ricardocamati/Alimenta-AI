@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from database.models import Doacao, LogAFD, StatusDoacao, Urgencia
 from doacoes.schemas import DoacaoCreate
+from ml.predictor import UrgencyPredictor
 
 logger = logging.getLogger(__name__)
 
@@ -32,20 +33,18 @@ async def criar_doacao(
         doacao_id=doacao.id,
         estado_anterior="",
         estado_novo=StatusDoacao.cadastrado.value,
-        descricao="Doação cadastrada pelo doador",
+        descricao="Doacao cadastrada pelo doador",
     )
     db.add(log)
-    logger.info("Doação %s cadastrada pelo doador %s", doacao.id, doador_id)
+    logger.info("Doacao %s cadastrada pelo doador %s", doacao.id, doador_id)
 
     dias_ate_vencimento = (payload.data_validade - date.today()).days
     logger.info(
-        "Doação %s: dias_ate_vencimento=%s (validade=%s)",
+        "Doacao %s: dias_ate_vencimento=%s (validade=%s)",
         doacao.id,
         dias_ate_vencimento,
         payload.data_validade,
     )
-
-    from ml.predictor import UrgencyPredictor
 
     urgencia_predita = UrgencyPredictor.predict(
         tipo_alimento=payload.tipo_alimento,
@@ -57,7 +56,7 @@ async def criar_doacao(
         doacao.urgencia = Urgencia(urgencia_predita)
     except ValueError:
         logger.warning(
-            "Doação %s: urgência '%s' inválida, usando 'baixa'",
+            "Doacao %s: urgencia '%s' invalida, usando 'baixa'",
             doacao.id,
             urgencia_predita,
         )
@@ -68,11 +67,11 @@ async def criar_doacao(
         doacao_id=doacao.id,
         estado_anterior=StatusDoacao.cadastrado.value,
         estado_novo=StatusDoacao.analisado.value,
-        descricao="Análise de urgência realizada pelo motor de ML",
+        descricao="Analise de urgencia realizada pelo motor de ML",
     )
     db.add(log_transicao)
     logger.info(
-        "Doação %s: transição cadastrado → analisado (urgência=%s)",
+        "Doacao %s: transicao cadastrado -> analisado (urgencia=%s)",
         doacao.id,
         doacao.urgencia.value,
     )
