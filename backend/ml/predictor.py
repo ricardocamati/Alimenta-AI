@@ -3,6 +3,7 @@ import os
 
 import joblib
 import pandas as pd
+from sklearn.pipeline import Pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +11,7 @@ _MODEL_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "..", "models", "urgency_model.pkl"
 )
 
-_pipeline: object | None = None
+_pipeline: Pipeline | None = None
 
 
 def _load_pipeline() -> None:

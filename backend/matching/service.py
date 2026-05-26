@@ -31,6 +31,8 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 def _normalize(valores: list[float]) -> list[float]:
+    if not valores:
+        return []
     mn = min(valores)
     mx = max(valores)
     if mx == mn:

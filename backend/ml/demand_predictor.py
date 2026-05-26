@@ -3,6 +3,7 @@ import os
 
 import joblib
 import pandas as pd
+from statsforecast import StatsForecast
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +11,7 @@ _MODEL_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "..", "models", "demand_model.pkl"
 )
 
-_sf: object | None = None
+_sf: StatsForecast | None = None
 _demand_cache: dict[str, float] = {}
 _fallback_mean: float = 120.0
 

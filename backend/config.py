@@ -1,5 +1,3 @@
-import os
-
 from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 
@@ -18,9 +16,8 @@ class Settings(BaseSettings):
 settings = Settings()
 
 if settings.SECRET_KEY == _SENTINEL:
-    if os.getenv("SECRET_KEY", "") == _SENTINEL:
-        raise ValueError(
-            "SECRET_KEY nao configurada. Defina a variavel de ambiente SECRET_KEY "
-            "ou crie um arquivo .env com uma chave segura. "
-            "Gere uma com: python -c \"import secrets; print(secrets.token_hex(32))\""
-        )
+    raise ValueError(
+        "SECRET_KEY nao configurada. Defina a variavel de ambiente SECRET_KEY "
+        "ou crie um arquivo .env com uma chave segura. "
+        "Gere uma com: python -c \"import secrets; print(secrets.token_hex(32))\""
+    )

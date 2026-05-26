@@ -18,6 +18,12 @@ router = APIRouter(prefix="/doacoes", tags=["doacoes"])
 def require_doador(
     current_user: Usuario = Depends(get_current_user),
 ) -> Usuario:
+    """Verifica se o usuario autenticado e doador.
+
+    NOTA: Usa get_current_user (sem eager-load de ONG) por performance.
+    Se precisar acessar dados da ONG neste guard, troque para
+    get_current_user_with_ong.
+    """
     if current_user.tipo != TipoUsuario.doador:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

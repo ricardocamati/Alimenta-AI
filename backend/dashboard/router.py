@@ -15,6 +15,8 @@ from dashboard.service import (
 
 logger = logging.getLogger(__name__)
 
+__all__ = ["router"]
+
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 

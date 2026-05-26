@@ -1,5 +1,7 @@
 import logging
 
+from typing import Any
+
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,7 +26,7 @@ __all__ = [
 
 
 async def _tempo_medio_coleta(
-    db: AsyncSession, where_clause
+    db: AsyncSession, where_clause: Any
 ) -> float | None:
     result = await db.execute(
         select(Doacao.criado_em, Doacao.atualizado_em).where(where_clause)
@@ -46,7 +48,7 @@ def _distribuicao_urgencia_base() -> dict[str, int]:
 
 
 async def _ultimas_doacoes(
-    db: AsyncSession, where_clause
+    db: AsyncSession, where_clause: Any
 ) -> list[DoacaoResumo]:
     result = await db.execute(
         select(
