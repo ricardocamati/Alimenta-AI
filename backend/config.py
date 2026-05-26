@@ -9,13 +9,14 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_HOURS: int = 24
     DATABASE_URL: str = "sqlite:///./alimenta.db"
+    TEST_MODE: bool = False
 
     model_config = ConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 
 settings = Settings()
 
-if settings.SECRET_KEY == _SENTINEL:
+if settings.SECRET_KEY == _SENTINEL and not settings.TEST_MODE:
     raise ValueError(
         "SECRET_KEY nao configurada. Defina a variavel de ambiente SECRET_KEY "
         "ou crie um arquivo .env com uma chave segura. "
