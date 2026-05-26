@@ -3,6 +3,7 @@ import os
 
 import joblib
 import pandas as pd
+from sklearn.pipeline import Pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +11,7 @@ _MODEL_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "..", "models", "urgency_model.pkl"
 )
 
-_pipeline = None
+_pipeline: Pipeline | None = None
 
 
 def _load_pipeline() -> None:
@@ -20,14 +21,24 @@ def _load_pipeline() -> None:
         logger.info("UrgencyPredictor carregado: %s", _MODEL_PATH)
     except FileNotFoundError:
         logger.warning(
-            "Modelo de urgência não encontrado em %s. "
+            "Modelo de urgencia nao encontrado em %s. "
             "Execute 'python ml/train_urgency_model.py' para treinar. "
-            "Predições retornarão 'indefinida'.",
+            "Predicoes retornarao 'indefinida'.",
             _MODEL_PATH,
+        )
+    except Exception:
+        logger.exception(
+            "Erro ao carregar modelo de urgencia de %s", _MODEL_PATH
         )
 
 
 class UrgencyPredictor:
+    """Singleton de inferencia do modelo de urgencia.
+
+    Mantido como classe para permitir injecao de dependencia futura
+    e documentacao clara da interface publica.
+    """
+
     @staticmethod
     def predict(
         tipo_alimento: str,
@@ -36,7 +47,7 @@ class UrgencyPredictor:
         temperatura_celsius: float = 25.0,
     ) -> str:
         if _pipeline is None:
-            logger.warning("Predição ignorada — modelo não carregado.")
+            logger.warning("Predicao ignorada — modelo nao carregado.")
             return "indefinida"
 
         df = pd.DataFrame(
@@ -51,7 +62,7 @@ class UrgencyPredictor:
         )
         result = _pipeline.predict(df)[0]
         logger.info(
-            "Urgência predita: %s (alimento=%s, dias=%s, temp=%.1f)",
+            "Urgencia predita: %s (alimento=%s, dias=%s, temp=%.1f)",
             result,
             tipo_alimento,
             dias_ate_vencimento,

@@ -1,9 +1,12 @@
+import logging
 from datetime import datetime, timedelta, timezone
 
-from jose import JWTError, jwt
+from jose import ExpiredSignatureError, JWTError, jwt
 from passlib.context import CryptContext
 
 from config import settings
+
+logger = logging.getLogger(__name__)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -27,5 +30,9 @@ def decode_access_token(token: str) -> dict:
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         return payload
-    except JWTError:
+    except ExpiredSignatureError:
+        logger.warning("Token JWT expirado")
+        return {}
+    except JWTError as exc:
+        logger.warning("Token JWT invalido: %s", exc)
         return {}

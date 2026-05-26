@@ -1,13 +1,10 @@
-import os
-
-from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-load_dotenv()
+from config import settings
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./alimenta.db")
+DATABASE_URL = settings.DATABASE_URL
 
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(
@@ -33,11 +30,14 @@ def get_db():
         db.close()
 
 
-ASYNC_DATABASE_URL = DATABASE_URL.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+if DATABASE_URL.startswith("sqlite"):
+    ASYNC_DATABASE_URL = DATABASE_URL.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+else:
+    ASYNC_DATABASE_URL = DATABASE_URL
 
 async_engine = create_async_engine(
     ASYNC_DATABASE_URL,
-    connect_args={"check_same_thread": False},
+    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
     echo=False,
 )
 

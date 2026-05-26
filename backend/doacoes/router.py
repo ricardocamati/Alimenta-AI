@@ -3,11 +3,12 @@ import logging
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth.router import get_current_user_async
+from auth.router import get_current_user
 from database.connection import async_get_db, AsyncSessionLocal
 from database.models import TipoUsuario, Usuario
 from doacoes.schemas import DoacaoCreate, DoacaoDetailedResponse, DoacaoResponse
 from doacoes.service import buscar_doacao_por_id, criar_doacao, listar_doacoes
+from matching.service import calcular_matching
 
 logger = logging.getLogger(__name__)
 
@@ -15,8 +16,14 @@ router = APIRouter(prefix="/doacoes", tags=["doacoes"])
 
 
 def require_doador(
-    current_user: Usuario = Depends(get_current_user_async),
+    current_user: Usuario = Depends(get_current_user),
 ) -> Usuario:
+    """Verifica se o usuario autenticado e doador.
+
+    NOTA: Usa get_current_user (sem eager-load de ONG) por performance.
+    Se precisar acessar dados da ONG neste guard, troque para
+    get_current_user_with_ong.
+    """
     if current_user.tipo != TipoUsuario.doador:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -26,8 +33,6 @@ def require_doador(
 
 
 async def trigger_calcular_matching(doacao_id: int):
-    from matching.service import calcular_matching
-
     logger.info("BackgroundTask: calcular_matching(%s) iniciado", doacao_id)
     async with AsyncSessionLocal() as db:
         try:
@@ -70,6 +75,6 @@ async def detalhe_doacao_endpoint(
     if doacao is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Doação não encontrada",
+            detail="Doacao nao encontrada",
         )
     return doacao

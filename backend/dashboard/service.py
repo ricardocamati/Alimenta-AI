@@ -1,5 +1,7 @@
 import logging
 
+from typing import Any
+
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +17,61 @@ from dashboard.schemas import (
 from ml.demand_predictor import DemandPredictor
 
 logger = logging.getLogger(__name__)
+
+__all__ = [
+    "get_doador_dashboard",
+    "get_ong_dashboard",
+    "get_admin_dashboard",
+]
+
+
+async def _tempo_medio_coleta(
+    db: AsyncSession, where_clause: Any
+) -> float | None:
+    result = await db.execute(
+        select(Doacao.criado_em, Doacao.atualizado_em).where(where_clause)
+    )
+    horas = []
+    for criado_em, atualizado_em in result.all():
+        delta = (atualizado_em - criado_em).total_seconds() / 3600
+        horas.append(delta)
+    return round(sum(horas) / len(horas), 2) if horas else None
+
+
+def _distribuicao_urgencia_base() -> dict[str, int]:
+    return {
+        Urgencia.baixa.value: 0,
+        Urgencia.media.value: 0,
+        Urgencia.alta.value: 0,
+        Urgencia.critica.value: 0,
+    }
+
+
+async def _ultimas_doacoes(
+    db: AsyncSession, where_clause: Any
+) -> list[DoacaoResumo]:
+    result = await db.execute(
+        select(
+            Doacao.id,
+            Doacao.tipo_alimento,
+            Doacao.urgencia,
+            Doacao.status,
+            Doacao.criado_em,
+        )
+        .where(where_clause)
+        .order_by(Doacao.criado_em.desc())
+        .limit(5)
+    )
+    return [
+        DoacaoResumo(
+            id=r.id,
+            tipo_alimento=r.tipo_alimento,
+            urgencia=r.urgencia,
+            status=r.status,
+            criado_em=r.criado_em,
+        )
+        for r in result.all()
+    ]
 
 
 async def get_doador_dashboard(db: AsyncSession, user: Usuario) -> DashboardDoador:
@@ -38,54 +95,25 @@ async def get_doador_dashboard(db: AsyncSession, user: Usuario) -> DashboardDoad
 
     taxa = round(confirmadas / total_doacoes, 4) if total_doacoes > 0 else 0.0
 
-    tempo_medio = None
-    if confirmadas > 0:
-        result = await db.execute(
-            select(Doacao.criado_em, Doacao.atualizado_em)
-            .where(Doacao.doador_id == uid, Doacao.status == StatusDoacao.confirmado)
+    tempo_medio = (
+        await _tempo_medio_coleta(
+            db,
+            (Doacao.doador_id == uid) & (Doacao.status == StatusDoacao.confirmado),
         )
-        horas = []
-        for criado_em, atualizado_em in result.all():
-            delta = (atualizado_em - criado_em).total_seconds() / 3600
-            horas.append(delta)
-        tempo_medio = round(sum(horas) / len(horas), 2) if horas else None
+        if confirmadas > 0
+        else None
+    )
 
     urg_result = await db.execute(
         select(Doacao.urgencia, func.count())
         .where(Doacao.doador_id == uid)
         .group_by(Doacao.urgencia)
     )
-    distribuicao_urgencia = {
-        Urgencia.baixa.value: 0,
-        Urgencia.media.value: 0,
-        Urgencia.alta.value: 0,
-        Urgencia.critica.value: 0,
-    }
+    distribuicao = _distribuicao_urgencia_base()
     for urgencia, cnt in urg_result.all():
-        distribuicao_urgencia[urgencia.value] = cnt
+        distribuicao[urgencia.value] = cnt
 
-    last_result = await db.execute(
-        select(
-            Doacao.id,
-            Doacao.tipo_alimento,
-            Doacao.urgencia,
-            Doacao.status,
-            Doacao.criado_em,
-        )
-        .where(Doacao.doador_id == uid)
-        .order_by(Doacao.criado_em.desc())
-        .limit(5)
-    )
-    ultimas = [
-        DoacaoResumo(
-            id=r.id,
-            tipo_alimento=r.tipo_alimento,
-            urgencia=r.urgencia,
-            status=r.status,
-            criado_em=r.criado_em,
-        )
-        for r in last_result.all()
-    ]
+    ultimas = await _ultimas_doacoes(db, Doacao.doador_id == uid)
 
     return DashboardDoador(
         total_doacoes=total_doacoes,
@@ -93,7 +121,7 @@ async def get_doador_dashboard(db: AsyncSession, user: Usuario) -> DashboardDoad
         doacoes_canceladas=canceladas,
         taxa_aproveitamento=taxa,
         tempo_medio_coleta_horas=tempo_medio,
-        distribuicao_urgencia=distribuicao_urgencia,
+        distribuicao_urgencia=distribuicao,
         ultimas_doacoes=ultimas,
     )
 
@@ -142,31 +170,10 @@ async def get_ong_dashboard(db: AsyncSession, user: Usuario) -> DashboardONG:
     )
     distribuicao_categorias = {r[0]: r[1] for r in cat_result.all()}
 
-    last_result = await db.execute(
-        select(
-            Doacao.id,
-            Doacao.tipo_alimento,
-            Doacao.urgencia,
-            Doacao.status,
-            Doacao.criado_em,
-        )
-        .where(
-            Doacao.ong_matched_id == ong_id,
-            Doacao.status == StatusDoacao.confirmado,
-        )
-        .order_by(Doacao.criado_em.desc())
-        .limit(5)
+    ultimas = await _ultimas_doacoes(
+        db,
+        (Doacao.ong_matched_id == ong_id) & (Doacao.status == StatusDoacao.confirmado),
     )
-    ultimas = [
-        DoacaoResumo(
-            id=r.id,
-            tipo_alimento=r.tipo_alimento,
-            urgencia=r.urgencia,
-            status=r.status,
-            criado_em=r.criado_em,
-        )
-        for r in last_result.all()
-    ]
 
     return DashboardONG(
         total_doacoes_recebidas=recebidas,
@@ -199,18 +206,11 @@ async def get_admin_dashboard(db: AsyncSession, user: Usuario) -> DashboardAdmin
 
     taxa = round(confirmadas / total_doacoes, 4) if total_doacoes > 0 else 0.0
 
-    tempo_medio = None
-    if confirmadas > 0:
-        result = await db.execute(
-            select(Doacao.criado_em, Doacao.atualizado_em).where(
-                Doacao.status == StatusDoacao.confirmado
-            )
-        )
-        horas = []
-        for criado_em, atualizado_em in result.all():
-            delta = (atualizado_em - criado_em).total_seconds() / 3600
-            horas.append(delta)
-        tempo_medio = round(sum(horas) / len(horas), 2) if horas else None
+    tempo_medio = (
+        await _tempo_medio_coleta(db, Doacao.status == StatusDoacao.confirmado)
+        if confirmadas > 0
+        else None
+    )
 
     status_result = await db.execute(
         select(Doacao.status, func.count())

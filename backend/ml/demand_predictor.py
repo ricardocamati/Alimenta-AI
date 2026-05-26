@@ -3,6 +3,7 @@ import os
 
 import joblib
 import pandas as pd
+from statsforecast import StatsForecast
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +11,7 @@ _MODEL_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "..", "models", "demand_model.pkl"
 )
 
-_sf = None
+_sf: StatsForecast | None = None
 _demand_cache: dict[str, float] = {}
 _fallback_mean: float = 120.0
 
@@ -45,9 +46,20 @@ def _load_and_cache() -> None:
             _MODEL_PATH,
             _fallback_mean,
         )
+    except Exception:
+        logger.exception(
+            "Erro ao carregar modelo de demanda de %s", _MODEL_PATH
+        )
 
 
 class DemandPredictor:
+    """Singleton de inferencia do modelo de demanda (statsforecast).
+
+    O cache e preenchido no startup e nao e invalidado em runtime.
+    Novas ONGs recebem o valor medio global como fallback.
+    Para atualizar, reinicie o servidor apos re-treinar o modelo.
+    """
+
     @staticmethod
     def predict_demand(ong_id: int) -> float:
         key = str(ong_id)

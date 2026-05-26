@@ -1,18 +1,25 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from database.models import StatusDoacao, Urgencia
 
+__all__ = [
+    "DoacaoCreate",
+    "DoacaoResponse",
+    "DoacaoDetailedResponse",
+    "LogAFDResponse",
+]
+
 
 class DoacaoCreate(BaseModel):
-    tipo_alimento: str
-    categoria: str
+    tipo_alimento: str = Field(min_length=1, max_length=100)
+    categoria: str = Field(min_length=1, max_length=100)
     quantidade: float
     data_validade: date
-    foto_url: str | None = None
-    latitude: float | None = None
-    longitude: float | None = None
+    foto_url: str | None = Field(default=None, max_length=500)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
 
     @field_validator("data_validade")
     @classmethod

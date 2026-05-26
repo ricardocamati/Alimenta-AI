@@ -1,4 +1,4 @@
-from .connection import Base, engine, SessionLocal, get_db
+from .connection import Base, get_db, AsyncSessionLocal, async_get_db
 from .models import (
     Doacao,
     HistoricoAtendimento,
@@ -13,9 +13,9 @@ from .models import (
 
 __all__ = [
     "Base",
-    "engine",
-    "SessionLocal",
     "get_db",
+    "AsyncSessionLocal",
+    "async_get_db",
     "Usuario",
     "Doacao",
     "ONG",

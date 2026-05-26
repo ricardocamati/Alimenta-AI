@@ -8,6 +8,7 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -155,7 +156,7 @@ class HistoricoAtendimento(Base):
     ong_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("ongs.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    semana: Mapped[date] = mapped_column(Date, nullable=False)
+    semana: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     quantidade_atendida: Mapped[int] = mapped_column(Integer, nullable=False)
 
     ong: Mapped["ONG"] = relationship("ONG", back_populates="historico")
@@ -180,6 +181,10 @@ class LogAFD(Base):
 
     doacao: Mapped["Doacao"] = relationship("Doacao", back_populates="logs")
 
+    __table_args__ = (
+        Index("ix_logs_afd_doacao_timestamp", "doacao_id", "timestamp"),
+    )
+
     def __repr__(self) -> str:
         return f"<LogAFD(id={self.id}, doacao_id={self.doacao_id}, '{self.estado_anterior}' -> '{self.estado_novo}')>"
 
@@ -189,10 +194,10 @@ class ScoreMatching(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     doacao_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("doacoes.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("doacoes.id", ondelete="CASCADE"), nullable=False, index=True
     )
     ong_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("ongs.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("ongs.id", ondelete="CASCADE"), nullable=False, index=True
     )
     urgencia_peso: Mapped[float] = mapped_column(Float, nullable=False)
     demanda_peso: Mapped[float] = mapped_column(Float, nullable=False)

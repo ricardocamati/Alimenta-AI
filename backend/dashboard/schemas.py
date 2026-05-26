@@ -5,6 +5,16 @@ from pydantic import BaseModel, Field
 
 from database.models import StatusDoacao, Urgencia
 
+__all__ = [
+    "DoacaoResumo",
+    "TopDoador",
+    "TopOng",
+    "DashboardDoador",
+    "DashboardONG",
+    "DashboardAdmin",
+    "DashboardResponse",
+]
+
 
 class DoacaoResumo(BaseModel):
     id: int
