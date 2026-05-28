@@ -94,11 +94,11 @@ export default function NgoScreen() {
 
     setTimeout(() => {
       try {
+        // updateDonationState accepts up to 3 arguments; pass only the expected ones
         store.updateDonationState(
-          selectedDonationId, 
-          nextState, 
-          activeNgoName, 
-          transitionNotes || undefined
+          selectedDonationId,
+          nextState,
+          activeNgoName
         );
         setSuccessMsg(`Status atualizado para "${nextState}" com sucesso!`);
         setTransitionNotes('');
@@ -309,7 +309,7 @@ export default function NgoScreen() {
                           {/* Horizontal Timeline view of state machine */}
                           <View style={styles.timelineWrapper}>
                             {LIFECYCLE_STATES.map((stateName, index) => {
-                              const historyEntry = donation.history.find(h => h.status === stateName);
+                              const historyEntry = (donation.history || []).find(h => h.status === stateName);
                               const isCompleted = !!historyEntry;
                               const isActive = donation.status === stateName;
                               
@@ -369,7 +369,7 @@ export default function NgoScreen() {
                               onPress={() => handleUpdateState('Coletado')}
                               disabled={loading}
                             >
-                              <SymbolView name={{ ios: 'shippingbox.fill', android: 'local_shipping', web: 'local_shipping' }} size={16} tintColor="#ffffff" />
+                              <SymbolView name={{ ios: 'shippingbox.fill', android: 'local_shipping', web: 'local_shipping' } as any} size={16} tintColor="#ffffff" />
                               <ThemedText type="code" style={styles.actionBtnText}>Marcar Coletado</ThemedText>
                             </Pressable>
                             

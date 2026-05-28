@@ -47,6 +47,15 @@ function getSeverityColor(severity: Severity): string {
   }
 }
 
+function getSeverityPercent(severity: Severity): number {
+  switch (severity) {
+    case 'CRITICO': return 5;
+    case 'ALTO': return 15;
+    case 'MEDIO': return 30;
+    case 'BAIXO': return 50;
+  }
+}
+
 function getSeverityBg(severity: Severity): string {
   switch (severity) {
     case 'CRITICO': return '#f4433618';
@@ -293,7 +302,7 @@ export default function AlertsScreen() {
                         styles.expiryProgressFill,
                         { 
                           backgroundColor: getSeverityColor(severity),
-                          width: `${Math.max(5, Math.min(100, (1 - severity === 'CRITICO' ? 0.05 : severity === 'ALTO' ? 0.15 : 0.3) * 100))}%`,
+                          width: `${getSeverityPercent(severity)}%`,
                         },
                       ]} 
                     />
@@ -378,7 +387,7 @@ export default function AlertsScreen() {
                     <View style={styles.notifLeft}>
                       <View style={[styles.notifCatIcon, { backgroundColor: getNotifCatColor(notif.category) + '20' }]}>
                         <SymbolView 
-                          name={getNotifCatIcon(notif.category)} 
+                          name={getNotifCatIcon(notif.category) as any} 
                           size={16} 
                           tintColor={getNotifCatColor(notif.category)}
                         />

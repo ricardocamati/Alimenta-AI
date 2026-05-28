@@ -164,7 +164,7 @@ export default function PortalScreen() {
         <ThemedView style={styles.brandContainer}>
           <View style={styles.logoCircle}>
             <SymbolView 
-              name={{ ios: 'fork.knife.circle.fill', android: 'restaurant', web: 'restaurant' }} 
+              name={(Platform.OS === 'ios' ? 'fork.knife.circle.fill' : 'restaurant') as any}
               size={48} 
               tintColor="#3c87f7"
             />
@@ -178,11 +178,11 @@ export default function PortalScreen() {
         {/* Logged In Info Indicator */}
         {store.currentUser && (
           <ThemedView type="backgroundSelected" style={styles.activeSessionCard}>
-            <SymbolView 
-              name={{ ios: 'person.crop.circle.badge.checkmark', android: 'account_circle', web: 'account_circle' }} 
-              size={24} 
-              tintColor="#4caf50"
-            />
+              <SymbolView 
+                name={(Platform.OS === 'ios' ? 'person.crop.circle.badge.checkmark' : 'account_circle') as any}
+                size={24} 
+                tintColor="#4caf50"
+              />
             <View style={{ flex: 1, marginLeft: Spacing.two }}>
               <ThemedText type="smallBold">Sessão Ativa</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
