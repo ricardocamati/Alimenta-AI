@@ -30,6 +30,9 @@ export default function AppTabs() {
           <TabTrigger name="ngo" href="/ngo" asChild>
             <TabButton>ONG</TabButton>
           </TabTrigger>
+          <TabTrigger name="alerts" href="/alerts" asChild>
+            <TabButton>Alertas</TabButton>
+          </TabTrigger>
           <TabTrigger name="admin" href="/admin" asChild>
             <TabButton>Admin</TabButton>
           </TabTrigger>

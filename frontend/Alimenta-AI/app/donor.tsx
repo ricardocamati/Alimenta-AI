@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   StyleSheet, 
   TextInput, 
@@ -151,6 +151,20 @@ export default function DonorScreen() {
   };
 
   const selectedPhoto = FOOD_PHOTOS.find(p => p.id === photoId) || FOOD_PHOTOS[4];
+
+  useEffect(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const nearExpiryCount = donorDonations.filter(d => {
+      const expiry = new Date(d.expiryDate);
+      const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      return diffDays <= 3 && !['Confirmado', 'Coletado', 'Cancelado'].includes(d.status);
+    }).length;
+
+    if (nearExpiryCount > 0) {
+      store.triggerExpiryAlerts();
+    }
+  }, []);
 
   // Helper for status styling
   const getStatusColor = (status: string) => {

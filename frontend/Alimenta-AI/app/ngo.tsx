@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   StyleSheet, 
   Pressable, 
@@ -71,6 +71,20 @@ export default function NgoScreen() {
   const pendingCollectionsCount = matchedDonations
     .filter(d => ['Matched', 'Notificado', 'Coletado'].includes(d.status))
     .length;
+
+  useEffect(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const nearExpiryCount = matchedDonations.filter(d => {
+      const expiry = new Date(d.expiryDate);
+      const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      return diffDays <= 3 && !['Confirmado', 'Cancelado'].includes(d.status);
+    }).length;
+
+    if (nearExpiryCount > 0) {
+      store.triggerExpiryAlerts();
+    }
+  }, []);
 
   const handleUpdateState = (nextState: DonationStatus) => {
     if (!selectedDonationId) return;

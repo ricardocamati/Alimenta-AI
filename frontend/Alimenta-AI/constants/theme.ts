@@ -27,6 +27,19 @@ export const Colors = {
   },
 };
 
+export type ThemeColor = 'text' | 'textSecondary' | 'background' | 'backgroundElement' | 'backgroundSelected' | 'tint';
+
+export const Spacing = {
+  one: 5,
+  two: 10,
+  three: 16,
+  four: 24,
+  five: 32,
+};
+
+export const MaxContentWidth = 800;
+export const BottomTabInset = 80;
+
 export const Fonts = Platform.select({
   ios: {
     /** iOS `UIFontDescriptorSystemDesignDefault` */
