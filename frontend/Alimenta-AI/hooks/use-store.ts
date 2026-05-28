@@ -22,6 +22,7 @@ export interface Donation {
   urgency?: string;
   lat?: number;
   lng?: number;
+  history?: { status: DonationStatus; timestamp: string }[];
 }
 
 export interface Notification {
@@ -64,6 +65,8 @@ export interface Ngo {
   address: string;
   capacity: number;
   userId: string;
+  history: number[];
+  predictedDemand: number;
 }
 
 interface Weights {
@@ -246,8 +249,8 @@ let seedUsers: User[] = [
 ];
 
 let seedNgos: Ngo[] = [
-  { id: 'ngo_1', name: 'ONG Prato Cheio', cnpj: '11.222.333/0001-44', address: 'Rua da Consolação, 800', capacity: 250, userId: 'ngo_1' },
-  { id: 'ngo_2', name: 'ONG Mesa Brasil', cnpj: '44.555.666/0001-77', address: 'Av. Rebouças, 1200', capacity: 320, userId: 'ngo_2' },
+  { id: 'ngo_1', name: 'ONG Prato Cheio', cnpj: '11.222.333/0001-44', address: 'Rua da Consolação, 800', capacity: 250, userId: 'ngo_1', history: [180, 210, 195, 230], predictedDemand: 260 },
+  { id: 'ngo_2', name: 'ONG Mesa Brasil', cnpj: '44.555.666/0001-77', address: 'Av. Rebouças, 1200', capacity: 320, userId: 'ngo_2', history: [250, 270, 240, 290], predictedDemand: 320 },
 ];
 
 let state: StoreState = {
