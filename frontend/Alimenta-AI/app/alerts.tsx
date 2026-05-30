@@ -12,6 +12,7 @@ import { router } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { UrgencyBadge } from '@/components/urgency-badge';
 import { useStore, Donation } from '@/hooks/use-store';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing, MaxContentWidth, BottomTabInset } from '@/constants/theme';
@@ -56,12 +57,12 @@ function getSeverityPercent(severity: Severity): number {
   }
 }
 
-function getSeverityBg(severity: Severity): string {
+function mapSeverityToUrgency(severity: Severity): string {
   switch (severity) {
-    case 'CRITICO': return '#f4433618';
-    case 'ALTO': return '#ff980018';
-    case 'MEDIO': return '#ffc10718';
-    case 'BAIXO': return '#4caf5018';
+    case 'CRITICO': return 'critica';
+    case 'ALTO': return 'alta';
+    case 'MEDIO': return 'media';
+    case 'BAIXO': return 'baixa';
   }
 }
 
@@ -264,12 +265,7 @@ export default function AlertsScreen() {
                   style={[styles.expiryCard, { borderLeftColor: getSeverityColor(severity) }]}
                 >
                   <View style={styles.expiryCardHeader}>
-                    <View style={[styles.expirySeverityBadge, { backgroundColor: getSeverityBg(severity) }]}>
-                      <View style={[styles.severityDot, { backgroundColor: getSeverityColor(severity) }]} />
-                      <ThemedText type="code" style={[styles.severityText, { color: getSeverityColor(severity) }]}>
-                        {severity}
-                      </ThemedText>
-                    </View>
+                    <UrgencyBadge urgency={mapSeverityToUrgency(severity)} compact />
                     <ThemedText type="code" style={[styles.expiryDays, { color: getSeverityColor(severity) }]}>
                       {label.toUpperCase()}
                     </ThemedText>

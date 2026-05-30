@@ -37,19 +37,19 @@ O cruzamento dessas previsões gera um **score de prioridade** que determina aut
 ## 🏗️ Arquitetura
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    Alimenta.AI                          │
-├─────────────────┬───────────────────────────────────────┤
-│   App Mobile    │           Backend / API               │
-│  (Doadores e    ├──────────────┬────────────────────────┤
-│   Receptores)   │  ML - Oferta │  ML - Demanda          │
-│                 │  Random Forest│  statsforecast         │
-│  • Câmera       │  Gradient    │  AutoETS / AutoARIMA   │
-│  • GPS          │  Boosting    │  Histórico de ONGs     │
-│  • Validade     ├──────────────┴────────────────────────┤
-│                 │       Score de Matching               │
-│                 │  (urgência + demanda + distância)     │
-└─────────────────┴───────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────┐
+│                    Alimenta.AI                            │
+├─────────────────┬─────────────────────────────────────────┤
+│   App Mobile    │           Backend / API                 │
+│  (Doadores e    ├────────────────┬────────────────────────┤
+│   Receptores)   │  ML - Oferta   │  ML - Demanda          │
+│                 │  Random Forest │  statsforecast         │
+│  • Câmera       │  Gradient      │  AutoETS / AutoARIMA   │
+│  • GPS          │  Boosting      │  Histórico de ONGs     │
+│  • Validade     ├────────────────┴────────────────────────┤
+│                 │       Score de Matching                 │
+│                 │  (urgência + demanda + distância)       │
+└─────────────────┴─────────────────────────────────────────┘
 ```
 
 O fluxo completo da doação — desde o cadastro do alimento até a confirmação da coleta — é representado como um **Autômato Finito Determinístico (AFD)**, garantindo rastreabilidade de estados e consistência de transições.

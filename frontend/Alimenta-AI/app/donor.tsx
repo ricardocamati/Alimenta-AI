@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Donation, useStore } from '@/hooks/use-store';
+import { UrgencyBadge } from '@/components/urgency-badge';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing, MaxContentWidth, BottomTabInset } from '@/constants/theme';
 
@@ -546,9 +547,7 @@ export default function DonorScreen() {
                   </ThemedText>
                   
                   <View style={styles.modelResultRow}>
-                    <View style={styles.urgencyPill}>
-                      <ThemedText type="code" style={{ color: '#ffffff' }}>Urgência: ALTA (90/100)</ThemedText>
-                    </View>
+                    <UrgencyBadge urgency="alta" />
                     <ThemedText type="code" style={{ fontSize: 11, flex: 1, marginLeft: Spacing.two }}>
                       Recomendado para coleta imediata em até 48 horas.
                     </ThemedText>
@@ -638,6 +637,10 @@ export default function DonorScreen() {
                       <ThemedText type="code" style={styles.donationCardDesc}>
                         Qtd: {donation.quantity} • Validade: {donation.expiryDate}
                       </ThemedText>
+
+                      <View style={styles.donationUrgencyRow}>
+                        <UrgencyBadge urgency={donation.urgency || 'media'} compact />
+                      </View>
 
                       {donation.matchedNgoName && (
                         <View style={styles.matchedNgoRow}>
@@ -1016,11 +1019,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: Spacing.two,
   },
-  urgencyPill: {
-    backgroundColor: '#f44336',
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.two,
-    borderRadius: Spacing.one,
+  donationUrgencyRow: {
+    marginTop: Spacing.one,
+    marginBottom: Spacing.one,
   },
   ngoSuggestionBox: {
     flexDirection: 'row',
