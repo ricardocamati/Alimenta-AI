@@ -226,7 +226,10 @@ export default function DonorScreen() {
       return;
     }
 
-    if (!hasLocation) {
+    const capturedLatitude = latitude;
+    const capturedLongitude = longitude;
+
+    if (capturedLatitude === null || capturedLongitude === null) {
       setErrorMsg('Capture a localização real do usuário antes de publicar.');
       return;
     }
@@ -244,8 +247,8 @@ export default function DonorScreen() {
           expiryDate,
           photoUrl: photoAsset.uri,
           storageConditions,
-          lat: latitude ?? undefined,
-          lng: longitude ?? undefined,
+          lat: capturedLatitude,
+          lng: capturedLongitude,
         });
         
         setLoading(false);

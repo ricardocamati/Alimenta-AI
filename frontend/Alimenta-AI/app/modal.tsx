@@ -170,7 +170,10 @@ export default function ModalScreen() {
       return;
     }
 
-    if (!hasLocation) {
+    const capturedLatitude = latitude;
+    const capturedLongitude = longitude;
+
+    if (capturedLatitude === null || capturedLongitude === null) {
       setErrorMsg('Capture sua localização antes de confirmar.');
       return;
     }
@@ -188,8 +191,8 @@ export default function ModalScreen() {
           expiryDate,
           photoUrl: photoAsset.uri,
           storageConditions,
-          lat: latitude ?? undefined,
-          lng: longitude ?? undefined,
+          lat: capturedLatitude,
+          lng: capturedLongitude,
         });
 
         setSuccessMsg('Doação registrada com sucesso.');
