@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -59,6 +60,10 @@ export default function DonorScreen() {
   const [storageConditions, setStorageConditions] = useState('Temperatura Ambiente');
   const [photoAsset, setPhotoAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [loadingPhoto, setLoadingPhoto] = useState(false);
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [locationLabel, setLocationLabel] = useState('Localização ainda não capturada');
+  const [loadingLocation, setLoadingLocation] = useState(false);
 
   // Form Submission feedback states
   const [loading, setLoading] = useState(false);
@@ -85,6 +90,7 @@ export default function DonorScreen() {
   const pendingDonationsCount = donorDonations.filter(d => 
     ['Cadastrado', 'Analisado', 'Matched', 'Notificado'].includes(d.status)
   ).length;
+  const hasLocation = latitude !== null && longitude !== null;
 
   const handleNextStep1 = () => {
     if (!foodName || !quantity) {
@@ -175,9 +181,53 @@ export default function DonorScreen() {
     }
   };
 
+  const captureLocation = async () => {
+    try {
+      setLoadingLocation(true);
+      setErrorMsg('');
+
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) {
+        setErrorMsg('Permissão de localização negada. Habilite o GPS para continuar.');
+        return;
+      }
+
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      const { latitude: lat, longitude: lng } = position.coords;
+      setLatitude(lat);
+      setLongitude(lng);
+
+      try {
+        const [resolved] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+        if (resolved) {
+          const city = resolved.city || resolved.subregion || resolved.region || 'Localidade';
+          const region = resolved.region || '';
+          const street = resolved.street || resolved.name || '';
+          setLocationLabel([street, city, region].filter(Boolean).join(' • '));
+        } else {
+          setLocationLabel('Localização capturada com sucesso');
+        }
+      } catch {
+        setLocationLabel('Localização capturada com sucesso');
+      }
+    } catch {
+      Alert.alert('Erro de localização', 'Não foi possível obter sua localização atual.');
+    } finally {
+      setLoadingLocation(false);
+    }
+  };
+
   const handleRegisterDonation = () => {
     if (!photoAsset) {
       setErrorMsg('Capture ou selecione uma foto real do alimento antes de publicar.');
+      return;
+    }
+
+    if (!hasLocation) {
+      setErrorMsg('Capture a localização real do usuário antes de publicar.');
       return;
     }
 
@@ -193,7 +243,9 @@ export default function DonorScreen() {
           quantity,
           expiryDate,
           photoUrl: photoAsset.uri,
-          storageConditions
+          storageConditions,
+          lat: latitude ?? undefined,
+          lng: longitude ?? undefined,
         });
         
         setLoading(false);
@@ -206,6 +258,9 @@ export default function DonorScreen() {
         setQuantity('');
         setStorageConditions('Temperatura Ambiente');
         setPhotoAsset(null);
+        setLatitude(null);
+        setLongitude(null);
+        setLocationLabel('Localização ainda não capturada');
         setFormStep(1);
         
         // Clear message
@@ -516,20 +571,44 @@ export default function DonorScreen() {
             <View style={styles.stepWrapper}>
               <ThemedText type="smallBold" style={{ color: '#3c87f7' }}>Revisão e Captura de Metadados</ThemedText>
 
-              {/* GPS Auto capture showcase (RF-06) */}
               <ThemedView type="backgroundSelected" style={styles.gpsDisplayBox}>
-                <SymbolView name="location.fill" size={24} tintColor="#4caf50" />
-                <View style={{ flex: 1, marginLeft: Spacing.two }}>
-                  <ThemedText type="smallBold">Localização GPS Automática (RF-06)</ThemedText>
-                  <ThemedText type="code" style={{ fontSize: 11 }}>
-                    Lat: -23.5615 • Lng: -46.6560 (São Paulo - SP)
-                  </ThemedText>
-                  <ThemedText type="code" style={{ fontSize: 9, opacity: 0.6 }}>
-                    Capturado no instante do cadastro da doação.
-                  </ThemedText>
+                <View style={styles.gpsHeaderRow}>
+                  <SymbolView name="location.fill" size={24} tintColor="#4caf50" />
+                  <View style={{ flex: 1, marginLeft: Spacing.two }}>
+                    <ThemedText type="smallBold">Localização GPS do usuário (RF-06)</ThemedText>
+                    <ThemedText type="code" style={{ fontSize: 9, opacity: 0.6 }}>
+                      A latitude e longitude salvas serão as coordenadas atuais do dispositivo.
+                    </ThemedText>
+                  </View>
+                  <View style={[styles.gpsStatusBadge, !hasLocation && styles.gpsStatusPending]}>
+                    <ThemedText type="code" style={{ color: '#ffffff', fontSize: 10 }}>
+                      {hasLocation ? 'GPS OK' : 'PENDENTE'}
+                    </ThemedText>
+                  </View>
                 </View>
-                <View style={styles.gpsStatusBadge}>
-                  <ThemedText type="code" style={{ color: '#ffffff', fontSize: 10 }}>OK (Sinal 100%)</ThemedText>
+
+                <Pressable
+                  style={styles.locationCaptureBtn}
+                  onPress={captureLocation}
+                  disabled={loadingLocation}
+                >
+                  {loadingLocation ? (
+                    <ActivityIndicator color="#ffffff" size="small" />
+                  ) : (
+                    <SymbolView name="location.fill" size={16} tintColor="#ffffff" />
+                  )}
+                  <ThemedText type="smallBold" style={{ color: '#ffffff' }}>
+                    {hasLocation ? 'Atualizar localização' : 'Capturar localização atual'}
+                  </ThemedText>
+                </Pressable>
+
+                <View style={styles.locationResultBox}>
+                  <ThemedText type="smallBold">{locationLabel}</ThemedText>
+                  <ThemedText type="code" style={styles.locationCoordsText}>
+                    {hasLocation
+                      ? `Lat: ${latitude?.toFixed(5)} • Lng: ${longitude?.toFixed(5)}`
+                      : 'Nenhuma coordenada capturada ainda.'}
+                  </ThemedText>
                 </View>
               </ThemedView>
 
@@ -990,18 +1069,44 @@ const styles = StyleSheet.create({
     marginLeft: Spacing.one,
   },
   gpsDisplayBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
     padding: Spacing.three,
     borderRadius: Spacing.two,
     borderWidth: 1,
     borderColor: '#4caf5055',
+    gap: Spacing.two,
+  },
+  gpsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   gpsStatusBadge: {
     backgroundColor: '#4caf50',
     paddingVertical: 2,
     paddingHorizontal: Spacing.two,
     borderRadius: Spacing.one,
+  },
+  gpsStatusPending: {
+    backgroundColor: '#ff9800',
+  },
+  locationCaptureBtn: {
+    minHeight: 46,
+    borderRadius: Spacing.two,
+    backgroundColor: '#4caf50',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.three,
+  },
+  locationResultBox: {
+    borderRadius: Spacing.two,
+    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    padding: Spacing.two,
+  },
+  locationCoordsText: {
+    fontSize: 11,
+    marginTop: 2,
+    opacity: 0.75,
   },
   modelPreviewCard: {
     borderRadius: Spacing.two,
