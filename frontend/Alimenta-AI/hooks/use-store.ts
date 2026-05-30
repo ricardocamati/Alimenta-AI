@@ -394,6 +394,8 @@ export function useStore() {
       expiryDate: string;
       photoUrl: string;
       storageConditions: string;
+      lat?: number;
+      lng?: number;
     }): Donation {
       const donorId = state.currentUser?.id || 'donor_1';
       const donorName = state.currentUser?.name || 'Doador Anônimo';
@@ -411,6 +413,7 @@ export function useStore() {
         quantity: data.quantity,
         expiryDate: data.expiryDate,
         photoId: data.photoUrl,
+        photoUrl: data.photoUrl,
         storageConditions: data.storageConditions,
         status: 'Cadastrado',
         matchScore,
@@ -418,8 +421,8 @@ export function useStore() {
         matchedNgoName: ngoMatch.name,
         timestamp: isoNow(),
         urgency: 'media',
-        lat: -23.5505 + (Math.random() - 0.5) * 0.02,
-        lng: -46.6333 + (Math.random() - 0.5) * 0.02,
+        lat: data.lat ?? -23.5505 + (Math.random() - 0.5) * 0.02,
+        lng: data.lng ?? -46.6333 + (Math.random() - 0.5) * 0.02,
       };
 
       state.donations = [newDonation, ...state.donations];

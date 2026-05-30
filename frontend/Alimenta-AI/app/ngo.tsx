@@ -5,7 +5,8 @@ import {
   ScrollView, 
   View, 
   ActivityIndicator,
-  TextInput
+  TextInput,
+  Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
@@ -25,6 +26,16 @@ const FOOD_PHOTOS = [
   { id: 'vegetables', name: 'Cesta de Verduras', emoji: '🥬', color: '#81c784' },
   { id: 'meats', name: 'Carne Bovina', emoji: '🥩', color: '#e57373' },
 ];
+
+function getDonationPhoto(donation: Donation) {
+  const photoValue = donation.photoUrl || donation.photoId;
+  const preset = FOOD_PHOTOS.find(p => p.id === photoValue);
+
+  return {
+    preset: preset || FOOD_PHOTOS[4],
+    uri: preset ? null : photoValue,
+  };
+}
 
 const LIFECYCLE_STATES: DonationStatus[] = [
   'Cadastrado',
@@ -252,7 +263,7 @@ export default function NgoScreen() {
                 // Sort by match score descending
                 .sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0))
                 .map(donation => {
-                  const photo = FOOD_PHOTOS.find(p => p.id === donation.photoUrl) || FOOD_PHOTOS[4];
+                  const photo = getDonationPhoto(donation);
                   const isSelected = selectedDonationId === donation.id;
                   
                   return (
@@ -270,8 +281,12 @@ export default function NgoScreen() {
                       ]}
                     >
                       <View style={styles.matchCardRow}>
-                        <View style={[styles.emojiCircle, { backgroundColor: photo.color + '22' }]}>
-                          <ThemedText style={{ fontSize: 28 }}>{photo.emoji}</ThemedText>
+                        <View style={[styles.emojiCircle, { backgroundColor: photo.preset.color + '22' }]}>
+                          {photo.uri ? (
+                            <Image source={{ uri: photo.uri }} style={styles.matchPhotoImage} resizeMode="cover" />
+                          ) : (
+                            <ThemedText style={{ fontSize: 28 }}>{photo.preset.emoji}</ThemedText>
+                          )}
                         </View>
                         <View style={{ flex: 1, gap: 2 }}>
                           <View style={styles.matchCardHeader}>
@@ -628,6 +643,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.three,
+    overflow: 'hidden',
+  },
+  matchPhotoImage: {
+    width: '100%',
+    height: '100%',
   },
   matchCardHeader: {
     flexDirection: 'row',

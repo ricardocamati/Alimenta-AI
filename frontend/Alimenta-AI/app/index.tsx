@@ -285,7 +285,7 @@ export default function PortalScreen() {
               </View>
 
               <ThemedText type="small" themeColor="textSecondary" style={styles.fieldHint}>
-                * Digite o nome do cadastro de teste para entrar automaticamente (ex: "Supermercado" ou "Prato Cheio").
+                {'* Digite o nome do cadastro de teste para entrar automaticamente (ex: "Supermercado" ou "Prato Cheio").'}
               </ThemedText>
 
               {/* Email / Username Input */}

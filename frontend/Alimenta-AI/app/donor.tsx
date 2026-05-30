@@ -7,20 +7,20 @@ import {
   View, 
   Image,
   Alert,
-  Platform,
   ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
 import { router } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { useStore, Donation } from '@/hooks/use-store';
+import { Donation, useStore } from '@/hooks/use-store';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing, MaxContentWidth, BottomTabInset } from '@/constants/theme';
 
-// Predefined high-quality food photo options for camera simulation
+// Preset metadata used for seeded donations and fallback cards.
 const FOOD_PHOTOS = [
   { id: 'tomatoes', name: 'Tomates', emoji: '🍅', color: '#ff5252', url: 'https://images.unsplash.com/photo-1595855759920-86582396756a?w=120' },
   { id: 'bread', name: 'Pão Caseiro', emoji: '🍞', color: '#ffa726', url: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=120' },
@@ -56,8 +56,8 @@ export default function DonorScreen() {
     return tomorrow.toISOString().split('T')[0];
   });
   const [storageConditions, setStorageConditions] = useState('Temperatura Ambiente');
-  const [photoId, setPhotoId] = useState('vegetables');
-  const [cameraActive, setCameraActive] = useState(false);
+  const [photoAsset, setPhotoAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [loadingPhoto, setLoadingPhoto] = useState(false);
 
   // Form Submission feedback states
   const [loading, setLoading] = useState(false);
@@ -104,6 +104,10 @@ export default function DonorScreen() {
       setErrorMsg('A data de validade deve ser uma data futura.');
       return;
     }
+    if (!photoAsset) {
+      setErrorMsg('Capture ou selecione uma foto real do alimento antes de avançar.');
+      return;
+    }
     setErrorMsg('');
     setFormStep(3);
   };
@@ -114,7 +118,68 @@ export default function DonorScreen() {
     if (formStep === 3) setFormStep(2);
   };
 
+  const capturePhoto = async () => {
+    try {
+      setLoadingPhoto(true);
+      setErrorMsg('');
+
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        setErrorMsg('Permissão de câmera negada. Habilite a câmera para continuar.');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.85,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        setPhotoAsset(result.assets[0]);
+      }
+    } catch {
+      Alert.alert('Erro na câmera', 'Não foi possível abrir a câmera neste dispositivo.');
+    } finally {
+      setLoadingPhoto(false);
+    }
+  };
+
+  const pickPhotoFromLibrary = async () => {
+    try {
+      setLoadingPhoto(true);
+      setErrorMsg('');
+
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        setErrorMsg('Permissão de galeria negada. Habilite o acesso às fotos para continuar.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.85,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        setPhotoAsset(result.assets[0]);
+      }
+    } catch {
+      Alert.alert('Erro na galeria', 'Não foi possível selecionar uma imagem neste dispositivo.');
+    } finally {
+      setLoadingPhoto(false);
+    }
+  };
+
   const handleRegisterDonation = () => {
+    if (!photoAsset) {
+      setErrorMsg('Capture ou selecione uma foto real do alimento antes de publicar.');
+      return;
+    }
+
     setErrorMsg('');
     setLoading(true);
 
@@ -126,7 +191,7 @@ export default function DonorScreen() {
           category,
           quantity,
           expiryDate,
-          photoUrl: photoId,
+          photoUrl: photoAsset.uri,
           storageConditions
         });
         
@@ -139,6 +204,7 @@ export default function DonorScreen() {
         setCategory('Perecível');
         setQuantity('');
         setStorageConditions('Temperatura Ambiente');
+        setPhotoAsset(null);
         setFormStep(1);
         
         // Clear message
@@ -150,7 +216,15 @@ export default function DonorScreen() {
     }, 1200);
   };
 
-  const selectedPhoto = FOOD_PHOTOS.find(p => p.id === photoId) || FOOD_PHOTOS[4];
+  const getDonationPhoto = (donation: Donation) => {
+    const photoValue = donation.photoUrl || donation.photoId;
+    const preset = FOOD_PHOTOS.find(p => p.id === photoValue);
+
+    return {
+      preset: preset || FOOD_PHOTOS[4],
+      uri: preset ? null : photoValue,
+    };
+  };
 
   useEffect(() => {
     const today = new Date();
@@ -363,7 +437,7 @@ export default function DonorScreen() {
             </View>
           )}
 
-          {/* FORM - STEP 2: Expiry & Camera simulation */}
+          {/* FORM - STEP 2: Expiry & real camera capture */}
           {formStep === 2 && (
             <View style={styles.stepWrapper}>
               <ThemedText type="smallBold" style={styles.inputLabel}>Data de Validade (Validado se Futura - RF-08)</ThemedText>
@@ -384,50 +458,42 @@ export default function DonorScreen() {
                 onChangeText={setStorageConditions}
               />
 
-              {/* Camera photo simulator (RF-07) */}
               <ThemedText type="smallBold" style={styles.inputLabel}>Foto do Alimento (Captura por Câmera / Galeria - RF-07)</ThemedText>
               <ThemedView type="backgroundSelected" style={styles.cameraSimulatorBox}>
-                {cameraActive ? (
-                  <View style={styles.activeCameraContainer}>
-                    <ThemedText type="code" style={{ marginBottom: Spacing.two }}>Simulador de Câmera Ativo</ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center', marginBottom: Spacing.three }}>
-                      Selecione um preset para tirar a foto do alimento:
-                    </ThemedText>
-                    <View style={styles.cameraOptionsGrid}>
-                      {FOOD_PHOTOS.map(photo => (
-                        <Pressable 
-                          key={photo.id}
-                          style={[styles.cameraOptionCell, photoId === photo.id && styles.cameraOptionCellSelected]}
-                          onPress={() => {
-                            setPhotoId(photo.id);
-                            setCameraActive(false);
-                          }}
-                        >
-                          <ThemedText style={{ fontSize: 24 }}>{photo.emoji}</ThemedText>
-                          <ThemedText type="code" style={{ fontSize: 10, color: photoId === photo.id ? '#ffffff' : theme.text }}>
-                            {photo.name}
-                          </ThemedText>
-                        </Pressable>
-                      ))}
-                    </View>
+                <View style={styles.inactiveCameraContent}>
+                  <View style={styles.photoPreviewBadge}>
+                    {photoAsset?.uri ? (
+                      <Image source={{ uri: photoAsset.uri }} style={styles.photoPreviewImage} resizeMode="cover" />
+                    ) : (
+                      <>
+                        <SymbolView name="camera.fill" size={28} tintColor="#3c87f7" />
+                        <ThemedText type="code" style={styles.emptyPhotoText}>Sem foto</ThemedText>
+                      </>
+                    )}
                   </View>
-                ) : (
-                  <View style={styles.inactiveCameraContent}>
-                    <View style={[styles.photoPreviewBadge, { backgroundColor: selectedPhoto.color + '22' }]}>
-                      <ThemedText style={{ fontSize: 48 }}>{selectedPhoto.emoji}</ThemedText>
-                    </View>
-                    <View style={{ flex: 1, marginLeft: Spacing.three }}>
-                      <ThemedText type="smallBold">Foto: {selectedPhoto.name}</ThemedText>
-                      <ThemedText type="code" style={{ fontSize: 11, opacity: 0.7 }}>
-                        Visualização simulada do dispositivo.
-                      </ThemedText>
-                      <Pressable style={styles.cameraBtn} onPress={() => setCameraActive(true)}>
-                        <SymbolView name="camera.fill" size={16} tintColor="#ffffff" />
-                        <ThemedText type="code" style={{ color: '#ffffff', marginLeft: Spacing.one }}>Tirar Foto (Câmera)</ThemedText>
+                  <View style={{ flex: 1, marginLeft: Spacing.three }}>
+                    <ThemedText type="smallBold">
+                      {photoAsset ? 'Foto real capturada' : 'Nenhuma foto capturada'}
+                    </ThemedText>
+                    <ThemedText type="code" style={{ fontSize: 11, opacity: 0.7 }}>
+                      Use a câmera do dispositivo ou escolha uma imagem da galeria.
+                    </ThemedText>
+                    <View style={styles.cameraActionsRow}>
+                      <Pressable style={styles.cameraBtn} onPress={capturePhoto} disabled={loadingPhoto}>
+                        {loadingPhoto ? (
+                          <ActivityIndicator color="#ffffff" size="small" />
+                        ) : (
+                          <SymbolView name="camera.fill" size={16} tintColor="#ffffff" />
+                        )}
+                        <ThemedText type="code" style={styles.cameraBtnText}>Abrir Câmera</ThemedText>
+                      </Pressable>
+                      <Pressable style={styles.galleryBtn} onPress={pickPhotoFromLibrary} disabled={loadingPhoto}>
+                        <SymbolView name="photo.fill" size={16} tintColor="#3c87f7" />
+                        <ThemedText type="code" style={styles.galleryBtnText}>Galeria</ThemedText>
                       </Pressable>
                     </View>
                   </View>
-                )}
+                </View>
               </ThemedView>
 
               <View style={styles.formNavRow}>
@@ -476,7 +542,7 @@ export default function DonorScreen() {
                 </View>
                 <View style={{ marginTop: Spacing.one }}>
                   <ThemedText type="small">
-                    Com base no tipo <ThemedText type="smallBold">"{foodType}"</ThemedText> e validade em <ThemedText type="smallBold">{expiryDate}</ThemedText>, o modelo de Random Forest calculou:
+                    Com base no tipo <ThemedText type="smallBold">&quot;{foodType}&quot;</ThemedText> e validade em <ThemedText type="smallBold">{expiryDate}</ThemedText>, o modelo de Random Forest calculou:
                   </ThemedText>
                   
                   <View style={styles.modelResultRow}>
@@ -551,11 +617,15 @@ export default function DonorScreen() {
           ) : (
             <View style={styles.donationList}>
               {donorDonations.map(donation => {
-                const photo = FOOD_PHOTOS.find(p => p.id === donation.photoUrl) || FOOD_PHOTOS[4];
+                const photo = getDonationPhoto(donation);
                 return (
                   <ThemedView key={donation.id} type="backgroundSelected" style={styles.donationCard}>
-                    <View style={[styles.donationPhotoSide, { backgroundColor: photo.color + '15' }]}>
-                      <ThemedText style={{ fontSize: 32 }}>{photo.emoji}</ThemedText>
+                    <View style={[styles.donationPhotoSide, { backgroundColor: photo.preset.color + '15' }]}>
+                      {photo.uri ? (
+                        <Image source={{ uri: photo.uri }} style={styles.donationPhotoImage} resizeMode="cover" />
+                      ) : (
+                        <ThemedText style={{ fontSize: 32 }}>{photo.preset.emoji}</ThemedText>
+                      )}
                     </View>
                     <View style={styles.donationDetailsSide}>
                       <View style={styles.donationCardHeader}>
@@ -871,6 +941,23 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.two,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(60, 135, 247, 0.12)',
+    overflow: 'hidden',
+  },
+  photoPreviewImage: {
+    width: '100%',
+    height: '100%',
+  },
+  emptyPhotoText: {
+    marginTop: 4,
+    color: '#3c87f7',
+    fontSize: 10,
+  },
+  cameraActionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+    marginTop: Spacing.two,
   },
   cameraBtn: {
     flexDirection: 'row',
@@ -879,31 +966,25 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three,
     borderRadius: Spacing.two,
-    marginTop: Spacing.two,
     alignSelf: 'flex-start',
   },
-  activeCameraContainer: {
-    alignItems: 'center',
+  cameraBtnText: {
+    color: '#ffffff',
+    marginLeft: Spacing.one,
   },
-  cameraOptionsGrid: {
+  galleryBtn: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.two,
-    justifyContent: 'center',
-  },
-  cameraOptionCell: {
-    width: 65,
-    height: 65,
-    borderRadius: Spacing.one,
-    backgroundColor: 'rgba(150,150,150,0.1)',
-    justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-  },
-  cameraOptionCellSelected: {
+    borderWidth: 1,
     borderColor: '#3c87f7',
-    backgroundColor: '#3c87f777',
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Spacing.two,
+    alignSelf: 'flex-start',
+  },
+  galleryBtnText: {
+    color: '#3c87f7',
+    marginLeft: Spacing.one,
   },
   gpsDisplayBox: {
     flexDirection: 'row',
@@ -991,6 +1072,10 @@ const styles = StyleSheet.create({
     width: 80,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  donationPhotoImage: {
+    width: '100%',
+    height: '100%',
   },
   donationDetailsSide: {
     flex: 1,
