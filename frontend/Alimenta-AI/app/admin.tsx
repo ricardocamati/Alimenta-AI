@@ -13,16 +13,22 @@ import { router } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useAuth } from '@/hooks/useAuth';
+import { useDashboard } from '@/hooks/useDashboard';
 import { useStore } from '@/hooks/use-store';
+import { ErrorMessage } from '@/components/ErrorMessage';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing, MaxContentWidth, BottomTabInset } from '@/constants/theme';
 
 export default function AdminScreen() {
+  const { user } = useAuth();
+  const { data: dashData, isLoading: loadingDash, error: dashError, refresh: refreshDash } = useDashboard();
   const store = useStore();
   const theme = useTheme();
 
-  // Admin access validation - check if user is admin
-  const isAdmin = store.currentUser && store.currentUser.role === 'admin';
+  const isAdmin = user && user.tipo === 'admin';
+  const dash = dashData && 'perfil' in dashData && dashData.perfil === 'admin' ? dashData : null;
 
   // Weight edit states
   const [urgencyWeight, setUrgencyWeight] = useState((store.weights.urgency * 100).toString());

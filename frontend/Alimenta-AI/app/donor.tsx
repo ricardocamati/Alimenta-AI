@@ -17,10 +17,16 @@ import * as Location from 'expo-location';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Donation, useStore } from '@/hooks/use-store';
+import { useAuth } from '@/hooks/useAuth';
+import { useDoacao } from '@/hooks/useDoacao';
+import { useDashboard } from '@/hooks/useDashboard';
+import { useStore } from '@/hooks/use-store';
 import { UrgencyBadge } from '@/components/urgency-badge';
+import { ErrorMessage } from '@/components/ErrorMessage';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing, MaxContentWidth, BottomTabInset } from '@/constants/theme';
+import type { DoacaoDTO } from '@/types';
 
 // Preset metadata used for seeded donations and fallback cards.
 const FOOD_PHOTOS = [
@@ -33,13 +39,24 @@ const FOOD_PHOTOS = [
 ];
 
 export default function DonorScreen() {
+  const { user } = useAuth();
+  const { doacoes, isLoading: loadingDoacoes, error: doacaoError, createDoacao, refresh: refreshDoacoes } = useDoacao();
+  const { data: dashData, isLoading: loadingDash, error: dashError, refresh: refreshDash } = useDashboard();
   const store = useStore();
   const theme = useTheme();
 
-  // Route protection - check if user is donor
-  const isDonorLoggedIn = !!(store.currentUser && store.currentUser.role === 'donor');
-  const activeDonorId = isDonorLoggedIn && store.currentUser ? store.currentUser.id : 'donor_1';
-  const activeDonorName = isDonorLoggedIn && store.currentUser ? store.currentUser.name : 'Supermercado Central';
+  const isDonorLoggedIn = !!(user && user.tipo === 'doador');
+  const activeDonorId = isDonorLoggedIn ? String(user!.id) : 'donor_1';
+  const activeDonorName = isDonorLoggedIn ? user!.nome : 'Supermercado Central';
+
+  const dash = dashData && 'perfil' in dashData && dashData.perfil === 'doador' ? dashData : null;
+  const totalDonationsCount = dash?.total_doacoes || doacoes.length;
+  const totalWeightKg = doacoes
+    .filter(d => d.status === 'confirmado' || d.status === 'coletado')
+    .reduce((acc, d) => acc + d.quantidade, 0);
+  const pendingDonationsCount = doacoes.filter(d =>
+    ['cadastrado', 'analisado', 'matched', 'notificado'].includes(d.status)
+  ).length;
 
   // --- 3-STEP DONATION FORM STATES ---
   const [formStep, setFormStep] = useState<1 | 2 | 3>(1);
@@ -220,7 +237,7 @@ export default function DonorScreen() {
     }
   };
 
-  const handleRegisterDonation = () => {
+  const handleRegisterDonation = async () => {
     if (!photoAsset) {
       setErrorMsg('Capture ou selecione uma foto real do alimento antes de publicar.');
       return;
@@ -237,78 +254,60 @@ export default function DonorScreen() {
     setErrorMsg('');
     setLoading(true);
 
-    setTimeout(() => {
-      try {
-        const donation = store.registerDonation({
-          name: foodName,
-          type: foodType,
-          category,
-          quantity,
-          expiryDate,
-          photoUrl: photoAsset.uri,
-          storageConditions,
-          lat: capturedLatitude,
-          lng: capturedLongitude,
-        });
-        
-        setLoading(false);
-        setSuccessMsg(`Doação "${donation.name}" cadastrada com sucesso!`);
-        
-        // Reset form
-        setFoodName('');
-        setFoodType('Fruta/Legume');
-        setCategory('Perecível');
-        setQuantity('');
-        setStorageConditions('Temperatura Ambiente');
-        setPhotoAsset(null);
-        setLatitude(null);
-        setLongitude(null);
-        setLocationLabel('Localização ainda não capturada');
-        setFormStep(1);
-        
-        // Clear message
-        setTimeout(() => setSuccessMsg(''), 3000);
-      } catch (err: any) {
-        setLoading(false);
-        setErrorMsg(err.message || 'Erro ao registrar doação.');
-      }
-    }, 1200);
+    try {
+      await createDoacao({
+        tipo_alimento: foodName,
+        categoria: category === 'Perecível' ? 'Perecível' : 'Não Perecível',
+        quantidade: parseFloat(quantity) || 0,
+        data_validade: expiryDate,
+        foto_url: photoAsset.uri,
+        latitude: capturedLatitude,
+        longitude: capturedLongitude,
+      });
+      
+      setLoading(false);
+      setSuccessMsg(`Doação "${foodName}" cadastrada com sucesso!`);
+      
+      setFoodName('');
+      setFoodType('Fruta/Legume');
+      setCategory('Perecível');
+      setQuantity('');
+      setStorageConditions('Temperatura Ambiente');
+      setPhotoAsset(null);
+      setLatitude(null);
+      setLongitude(null);
+      setLocationLabel('Localização ainda não capturada');
+      setFormStep(1);
+      
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (err: any) {
+      setLoading(false);
+      setErrorMsg(err.message || 'Erro ao registrar doação.');
+    }
   };
 
-  const getDonationPhoto = (donation: Donation) => {
-    const photoValue = donation.photoUrl || donation.photoId;
-    const preset = FOOD_PHOTOS.find(p => p.id === photoValue);
-
-    return {
-      preset: preset || FOOD_PHOTOS[4],
-      uri: preset ? null : photoValue,
-    };
+  const getDonationPhoto = (donation: DoacaoDTO) => {
+    const photoValue = donation.foto_url;
+    const preset = FOOD_PHOTOS.find(p => p.id === 'vegetables');
+    return { preset: preset || FOOD_PHOTOS[4], uri: photoValue || null };
   };
 
   useEffect(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const nearExpiryCount = donorDonations.filter(d => {
-      const expiry = new Date(d.expiryDate);
-      const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      return diffDays <= 3 && !['Confirmado', 'Coletado', 'Cancelado'].includes(d.status);
-    }).length;
-
-    if (nearExpiryCount > 0) {
-      store.triggerExpiryAlerts();
-    }
+    refreshDoacoes();
+    refreshDash();
   }, []);
 
   // Helper for status styling
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Cadastrado': return '#2196f3';
-      case 'Analisado': return '#9c27b0';
-      case 'Matched': return '#ff9800';
-      case 'Notificado': return '#e91e63';
-      case 'Coletado': return '#4caf50';
-      case 'Confirmado': return '#2e7d32';
-      case 'Cancelado': return '#f44336';
+    const s = status.toLowerCase();
+    switch (s) {
+      case 'cadastrado': return '#2196f3';
+      case 'analisado': return '#9c27b0';
+      case 'matched': return '#ff9800';
+      case 'notificado': return '#e91e63';
+      case 'coletado': return '#4caf50';
+      case 'confirmado': return '#2e7d32';
+      case 'cancelado': return '#f44336';
       default: return '#757575';
     }
   };
@@ -689,15 +688,21 @@ export default function DonorScreen() {
         </ThemedView>
 
         {/* DONATIONS REGISTRY LIST */}
+        {loadingDoacoes ? (
+          <LoadingSpinner message="Carregando doações..." />
+        ) : doacaoError ? (
+          <ErrorMessage message={doacaoError} onRetry={() => { refreshDoacoes(); refreshDash(); }} />
+        ) : (
+          <>
         <ThemedView type="backgroundElement" style={styles.listContainer}>
           <ThemedText type="smallBold" style={styles.listTitle}>Minhas Doações Registradas</ThemedText>
-          {donorDonations.length === 0 ? (
+          {doacoes.length === 0 ? (
             <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center', padding: Spacing.four }}>
               Nenhuma doação cadastrada por você ainda.
             </ThemedText>
           ) : (
             <View style={styles.donationList}>
-              {donorDonations.map(donation => {
+              {doacoes.map(donation => {
                 const photo = getDonationPhoto(donation);
                 return (
                   <ThemedView key={donation.id} type="backgroundSelected" style={styles.donationCard}>
@@ -710,31 +715,31 @@ export default function DonorScreen() {
                     </View>
                     <View style={styles.donationDetailsSide}>
                       <View style={styles.donationCardHeader}>
-                        <ThemedText type="smallBold" style={{ flex: 1 }}>{donation.name}</ThemedText>
+                        <ThemedText type="smallBold" style={{ flex: 1 }}>{donation.tipo_alimento}</ThemedText>
                         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(donation.status) }]}>
                           <ThemedText type="code" style={styles.statusBadgeText}>{donation.status}</ThemedText>
                         </View>
                       </View>
                       
                       <ThemedText type="code" style={styles.donationCardDesc}>
-                        Qtd: {donation.quantity} • Validade: {donation.expiryDate}
+                        Qtd: {donation.quantidade} • Validade: {donation.data_validade}
                       </ThemedText>
 
                       <View style={styles.donationUrgencyRow}>
-                        <UrgencyBadge urgency={donation.urgency || 'media'} compact />
+                        <UrgencyBadge urgency={donation.urgencia || 'media'} compact />
                       </View>
 
-                      {donation.matchedNgoName && (
+                      {donation.score_matching != null && (
                         <View style={styles.matchedNgoRow}>
                           <SymbolView name="hands.sparkles.fill" size={12} tintColor="#ff9800" />
                           <ThemedText type="code" style={styles.matchedNgoText}>
-                            Destinado para: {donation.matchedNgoName} (Score: {donation.matchScore})
+                            Score de matching: {donation.score_matching.toFixed(1)}
                           </ThemedText>
                         </View>
                       )}
 
                       <ThemedText type="code" style={styles.donationTimeText}>
-                        Cadastrado em {new Date(donation.timestamp).toLocaleDateString('pt-BR')} às {new Date(donation.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        Cadastrado em {new Date(donation.criado_em).toLocaleDateString('pt-BR')} às {new Date(donation.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                       </ThemedText>
                     </View>
                   </ThemedView>
@@ -743,6 +748,8 @@ export default function DonorScreen() {
             </View>
           )}
         </ThemedView>
+          </>
+        )}
 
         {/* NOTIFICATIONS INBOX */}
         <ThemedView type="backgroundElement" style={styles.notificationsContainer}>

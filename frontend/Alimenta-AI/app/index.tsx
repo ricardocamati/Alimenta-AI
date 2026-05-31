@@ -15,12 +15,12 @@ import { router } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { useStore } from '@/hooks/use-store';
+import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing, MaxContentWidth, BottomTabInset } from '@/constants/theme';
 
 export default function PortalScreen() {
-  const store = useStore();
+  const { user, isLoading: authLoading, login, register, logout } = useAuth();
   const theme = useTheme();
 
   // Mode state: 'login' | 'register-donor' | 'register-ngo'
@@ -32,6 +32,7 @@ export default function PortalScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
   const [cnpjCpf, setCnpjCpf] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
@@ -45,114 +46,107 @@ export default function PortalScreen() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!email || !password) {
-      setErrorMsg('Por favor, preencha todos os campos.');
+      setErrorMsg('Preencha seu e-mail e senha.');
       return;
     }
     setErrorMsg('');
     setLoading(true);
-    
-    // Simulate API delay
-    setTimeout(() => {
+    try {
+      await login({ email, senha: password });
+      setSuccessMsg('Login realizado!');
+      setEmail('');
+      setPassword('');
+      setTimeout(() => setSuccessMsg(''), 2000);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Erro ao fazer login.');
+    } finally {
       setLoading(false);
-      const success = store.login(loginRole, email);
-      if (success) {
-        setSuccessMsg(`Logado com sucesso como ${loginRole === 'admin' ? 'Administrador' : email}!`);
-        setEmail('');
-        setPassword('');
-        // Redirect to dashboard page based on role
-        setTimeout(() => {
-          setSuccessMsg('');
-          if (loginRole === 'donor') {
-            router.push('/donor');
-          } else if (loginRole === 'ngo') {
-            router.push('/ngo');
-          } else {
-            router.push('/admin');
-          }
-        }, 1000);
-      }
-    }, 1200);
+    }
   };
 
-  const handleRegisterDonor = () => {
-    if (!name || !cnpjCpf || !phone || !address || !password) {
-      setErrorMsg('Todos os campos são obrigatórios.');
+  const handleRegisterDonor = async () => {
+    clearFieldErrors();
+    const errors: Record<string, string> = {};
+    if (!name) errors.nome = 'Nome é obrigatório.';
+    if (!regEmail) errors.email = 'E-mail é obrigatório.';
+    if (!cnpjCpf) errors.cpf_cnpj = 'CPF/CNPJ é obrigatório.';
+    if (!phone) errors.telefone = 'Telefone é obrigatório.';
+    if (!address) errors.endereco = 'Endereço é obrigatório.';
+    if (!password || password.length < 6) errors.senha = 'Mínimo 6 caracteres.';
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setErrorMsg('Verifique os campos obrigatórios.');
       return;
     }
     setErrorMsg('');
     setLoading(true);
-
-    setTimeout(() => {
+    try {
+      await register({
+        nome: name, email: regEmail, senha: password, tipo: 'doador',
+        cpf_cnpj: cnpjCpf, endereco: address, telefone: phone,
+      });
+      setSuccessMsg('Cadastro de Doador realizado!');
+      setName(''); setRegEmail(''); setCnpjCpf(''); setPhone(''); setAddress(''); setPassword('');
+      setTimeout(() => setSuccessMsg(''), 2000);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Erro ao realizar cadastro.');
+    } finally {
       setLoading(false);
-      try {
-        store.registerDonor({
-          name,
-          cnpjCpf,
-          address,
-          phone
-        });
-        setSuccessMsg('Cadastro de Doador realizado com sucesso!');
-        // Reset fields
-        setName('');
-        setCnpjCpf('');
-        setPhone('');
-        setAddress('');
-        setPassword('');
-        setTimeout(() => {
-          setSuccessMsg('');
-          router.push('/donor');
-        }, 1000);
-      } catch (err: any) {
-        setErrorMsg(err.message || 'Erro ao realizar cadastro.');
-      }
-    }, 1200);
+    }
   };
 
-  const handleRegisterNgo = () => {
-    if (!name || !cnpjCpf || !address || !capacity || !password) {
-      setErrorMsg('Todos os campos são obrigatórios.');
+  const handleRegisterNgo = async () => {
+    clearFieldErrors();
+    const errors: Record<string, string> = {};
+    if (!name) errors.nome = 'Nome é obrigatório.';
+    if (!regEmail) errors.email = 'E-mail é obrigatório.';
+    if (!cnpjCpf) errors.cnpj = 'CNPJ é obrigatório.';
+    if (!address) errors.endereco = 'Endereço é obrigatório.';
+    if (!capacity) errors.capacidade = 'Capacidade é obrigatória.';
+    if (!password || password.length < 6) errors.senha = 'Mínimo 6 caracteres.';
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setErrorMsg('Verifique os campos obrigatórios.');
       return;
     }
     setErrorMsg('');
     setLoading(true);
-
-    setTimeout(() => {
+    try {
+      await register({
+        nome: name, email: regEmail, senha: password, tipo: 'ong',
+        cpf_cnpj: cnpjCpf, endereco: address,
+        ong: { cnpj: cnpjCpf, capacidade_atendimento: parseInt(capacity) || 100, latitude: -23.5505, longitude: -46.6333 },
+      });
+      setSuccessMsg('Cadastro de ONG realizado!');
+      setName(''); setRegEmail(''); setCnpjCpf(''); setAddress(''); setCapacity(''); setPassword('');
+      setTimeout(() => setSuccessMsg(''), 2000);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Erro ao realizar cadastro.');
+    } finally {
       setLoading(false);
-      try {
-        store.registerNgo({
-          name,
-          cnpj: cnpjCpf,
-          address,
-          capacity: parseInt(capacity) || 100
-        });
-        setSuccessMsg('Cadastro de ONG realizado com sucesso!');
-        setName('');
-        setCnpjCpf('');
-        setAddress('');
-        setCapacity('');
-        setPassword('');
-        setTimeout(() => {
-          setSuccessMsg('');
-          router.push('/ngo');
-        }, 1000);
-      } catch (err: any) {
-        setErrorMsg(err.message || 'Erro ao realizar cadastro.');
-      }
-    }, 1200);
+    }
   };
+
+  const clearFieldErrors = () => { setFieldErrors({}); };
 
   const handlePasswordRecovery = () => {
     if (!recoveryEmail) {
       alert('Por favor, informe seu e-mail.');
       return;
     }
-    store.recoverPassword(recoveryEmail);
     setRecoveryModalVisible(false);
     setRecoveryEmail('');
     alert('Link de recuperação enviado por e-mail!');
+  };
+
+  const getRoleRedirect = (tipo: string) => {
+    if (tipo === 'doador') router.push('/donor');
+    else if (tipo === 'ong') router.push('/ngo');
+    else router.push('/admin');
   };
 
   return (
@@ -176,7 +170,7 @@ export default function PortalScreen() {
         </ThemedView>
 
         {/* Logged In Info Indicator */}
-        {store.currentUser && (
+        {user && (
           <ThemedView type="backgroundSelected" style={styles.activeSessionCard}>
               <SymbolView 
                 name={(Platform.OS === 'ios' ? 'person.crop.circle.badge.checkmark' : 'account_circle') as any}
@@ -186,20 +180,16 @@ export default function PortalScreen() {
             <View style={{ flex: 1, marginLeft: Spacing.two }}>
               <ThemedText type="smallBold">Sessão Ativa</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                Conectado como {store.currentUser.name} ({store.currentUser.role.toUpperCase()})
+                Conectado como {user.nome} ({user.tipo.toUpperCase()})
               </ThemedText>
             </View>
             <Pressable 
-              onPress={() => {
-                if (store.currentUser?.role === 'donor') router.push('/donor');
-                else if (store.currentUser?.role === 'ngo') router.push('/ngo');
-                else router.push('/admin');
-              }}
+              onPress={() => getRoleRedirect(user.tipo)}
               style={styles.actionSessionBtn}
             >
               <ThemedText type="code" style={styles.actionSessionBtnText}>Entrar</ThemedText>
             </Pressable>
-            <Pressable onPress={() => store.logout()} style={styles.logoutBtn}>
+            <Pressable onPress={() => logout()} style={styles.logoutBtn}>
               <SymbolView name="power" size={20} tintColor="#f44336" />
             </Pressable>
           </ThemedView>

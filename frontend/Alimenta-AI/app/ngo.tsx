@@ -14,7 +14,11 @@ import { router } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useAuth } from '@/hooks/useAuth';
+import { useDashboard } from '@/hooks/useDashboard';
 import { useStore, Donation, DonationStatus } from '@/hooks/use-store';
+import { ErrorMessage } from '@/components/ErrorMessage';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing, MaxContentWidth, BottomTabInset } from '@/constants/theme';
 
@@ -47,13 +51,16 @@ const LIFECYCLE_STATES: DonationStatus[] = [
 ];
 
 export default function NgoScreen() {
+  const { user } = useAuth();
+  const { data: dashData, isLoading: loadingDash, error: dashError, refresh: refreshDash } = useDashboard();
   const store = useStore();
   const theme = useTheme();
 
-  // Route protection - check if user is ngo
-  const isNgoLoggedIn = !!(store.currentUser && store.currentUser.role === 'ngo');
-  const activeNgoId = isNgoLoggedIn && store.currentUser ? store.currentUser.id : 'ngo_1';
-  const activeNgoName = isNgoLoggedIn && store.currentUser ? store.currentUser.name : 'ONG Prato Cheio';
+  const isNgoLoggedIn = !!(user && user.tipo === 'ong');
+  const activeNgoId = isNgoLoggedIn ? String(user!.id) : 'ngo_1';
+  const activeNgoName = isNgoLoggedIn ? user!.nome : 'ONG Prato Cheio';
+
+  const dash = dashData && 'perfil' in dashData && dashData.perfil === 'ong' ? dashData : null;
 
   const currentNgo = store.ngos.find(n => n.id === activeNgoId) || store.ngos[0];
 
