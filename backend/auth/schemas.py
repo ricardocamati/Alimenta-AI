@@ -18,8 +18,8 @@ __all__ = [
 class ONGCreate(BaseModel):
     cnpj: str
     capacidade_atendimento: int = Field(gt=0)
-    latitude: float = Field(ge=-90, le=90)
-    longitude: float = Field(ge=-180, le=180)
+    latitude: float | None = None
+    longitude: float | None = None
 
     @field_validator("cnpj")
     @classmethod

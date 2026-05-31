@@ -8,7 +8,7 @@ from auth.schemas import LoginRequest, TokenResponse, UsuarioCreate, UsuarioResp
 from auth.service import authenticate, register
 from auth.utils import create_access_token, decode_access_token
 from database.connection import async_get_db, get_db
-from database.models import Usuario
+from database.models import ONG, Usuario
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
@@ -82,6 +82,15 @@ def register_endpoint(payload: UsuarioCreate, db=Depends(get_db)):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="CPF/CNPJ ja cadastrado",
+            )
+    if payload.ong is not None and payload.ong.cnpj:
+        cnpj_existente = (
+            db.query(ONG).filter(ONG.cnpj == payload.ong.cnpj).first()
+        )
+        if cnpj_existente:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="CNPJ da ONG ja cadastrado",
             )
     usuario = register(db, payload)
     return usuario

@@ -1,3 +1,0 @@
-TEST_MODE=true
-SECRET_KEY=dev-mode
-DATABASE_URL=sqlite:///./alimenta.db

@@ -18,6 +18,26 @@ import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing, MaxContentWidth, BottomTabInset } from '@/constants/theme';
+import * as Location from 'expo-location';
+
+async function geocodeAddress(endereco: string): Promise<{ latitude: number; longitude: number } | null> {
+  try {
+    if (Platform.OS === 'web') {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(endereco)}`,
+        { headers: { 'Accept-Language': 'pt-BR' } }
+      );
+      const data = await res.json();
+      if (!data || data.length === 0) return null;
+      return { latitude: parseFloat(data[0].lat), longitude: parseFloat(data[0].lon) };
+    }
+    const results = await Location.geocodeAsync(endereco);
+    if (!results || results.length === 0) return null;
+    return { latitude: results[0].latitude, longitude: results[0].longitude };
+  } catch {
+    return null;
+  }
+}
 
 export default function PortalScreen() {
   const { user, isLoading: authLoading, login, register, logout } = useAuth();
@@ -116,10 +136,20 @@ export default function PortalScreen() {
     setErrorMsg('');
     setLoading(true);
     try {
+      const coords = await geocodeAddress(address);
+      const ongPayload: Record<string, any> = {
+        cnpj: cnpjCpf,
+        capacidade_atendimento: parseInt(capacity) || 100,
+      };
+      if (coords) {
+        ongPayload.latitude = coords.latitude;
+        ongPayload.longitude = coords.longitude;
+      }
+
       await register({
         nome: name, email: regEmail, senha: password, tipo: 'ong',
         cpf_cnpj: cnpjCpf, endereco: address,
-        ong: { cnpj: cnpjCpf, capacidade_atendimento: parseInt(capacity) || 100, latitude: -23.5505, longitude: -46.6333 },
+        ong: ongPayload,
       });
       setSuccessMsg('Cadastro de ONG realizado!');
       setName(''); setRegEmail(''); setCnpjCpf(''); setAddress(''); setCapacity(''); setPassword('');
@@ -340,6 +370,17 @@ export default function PortalScreen() {
                 onChangeText={setName}
               />
 
+              <ThemedText type="smallBold" style={styles.inputLabel}>E-mail</ThemedText>
+              <TextInput 
+                style={[styles.input, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
+                placeholder="seu@email.com"
+                placeholderTextColor={theme.textSecondary}
+                value={regEmail}
+                onChangeText={setRegEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+
               <ThemedText type="smallBold" style={styles.inputLabel}>CNPJ ou CPF do Doador</ThemedText>
               <TextInput 
                 style={[styles.input, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
@@ -407,6 +448,17 @@ export default function PortalScreen() {
                 placeholderTextColor={theme.textSecondary}
                 value={name}
                 onChangeText={setName}
+              />
+
+              <ThemedText type="smallBold" style={styles.inputLabel}>E-mail</ThemedText>
+              <TextInput 
+                style={[styles.input, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
+                placeholder="contato@ong.org.br"
+                placeholderTextColor={theme.textSecondary}
+                value={regEmail}
+                onChangeText={setRegEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
               />
 
               <ThemedText type="smallBold" style={styles.inputLabel}>CNPJ da Instituição</ThemedText>

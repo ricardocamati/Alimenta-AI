@@ -90,23 +90,8 @@ export default function DonorScreen() {
   // --- OTHER STATES ---
   const [showCertificate, setShowCertificate] = useState(false);
 
-  // Filter donations and notifications for this specific donor
-  const donorDonations = store.donations.filter(d => d.donorId === activeDonorId);
+  // Filter notifications for this specific donor
   const donorNotifications = store.notifications.filter(n => n.userId === activeDonorId);
-
-  // Calculate stats dynamically (RF-23)
-  const totalDonationsCount = donorDonations.length;
-  
-  const totalWeightKg = donorDonations
-    .filter(d => d.status === 'Confirmado' || d.status === 'Coletado')
-    .reduce((acc, d) => {
-      const val = parseFloat(d.quantity) || 0;
-      return acc + val;
-    }, 0);
-
-  const pendingDonationsCount = donorDonations.filter(d => 
-    ['Cadastrado', 'Analisado', 'Matched', 'Notificado'].includes(d.status)
-  ).length;
   const hasLocation = latitude !== null && longitude !== null;
 
   const handleNextStep1 = () => {
