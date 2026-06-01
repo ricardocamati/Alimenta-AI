@@ -110,6 +110,9 @@ export default function NgoScreen() {
               {user?.nome || 'ONG'}
             </ThemedText>
           </View>
+          <Pressable onPress={logout} style={styles.logoutBtn}>
+            <ThemedText type="small" style={{ color: '#e91e63' }}>Sair</ThemedText>
+          </Pressable>
         </ThemedView>
 
         {/* Stats */}
@@ -442,7 +445,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { paddingHorizontal: Spacing.four, paddingBottom: BottomTabInset + Spacing.four },
   safeArea: { maxWidth: MaxContentWidth, width: '100%', alignSelf: 'center' },
-  header: { marginTop: Spacing.four, marginBottom: Spacing.three },
+  header: { marginTop: Spacing.four, marginBottom: Spacing.three, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  logoutBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#e91e6344' },
   statsRow: { flexDirection: 'row', gap: Spacing.two, marginBottom: Spacing.three },
   statCard: { flex: 1, borderRadius: 12, padding: Spacing.three, alignItems: 'center', borderWidth: 1, borderColor: '#333' },
   alertBanner: { flexDirection: 'row', alignItems: 'center', padding: Spacing.three, borderRadius: 10, marginBottom: Spacing.three, borderWidth: 1, borderColor: '#e91e6344' },
