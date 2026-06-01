@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { api } from '@/services/api';
+import api from '@/services/api';
 import type { DoacaoDTO } from '@/types';
 
 export interface DoacaoOngDTO extends DoacaoDTO {
