@@ -45,7 +45,7 @@ const FOOD_PHOTOS = [
 ];
 
 export default function DonorScreen() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { doacoes, isLoading: loadingDoacoes, error: doacaoError, createDoacao, refresh: refreshDoacoes } = useDoacao();
   const { data: dashData, isLoading: loadingDash, error: dashError, refresh: refreshDash } = useDashboard();
   const store = useStore();
@@ -346,6 +346,9 @@ export default function DonorScreen() {
               Conectado: <ThemedText type="smallBold">{activeDonorName}</ThemedText>
             </ThemedText>
           </View>
+          <Pressable onPress={logout} style={styles.logoutBtn}>
+            <ThemedText type="small" style={{ color: '#e91e63' }}>Sair</ThemedText>
+          </Pressable>
         </ThemedView>
 
         {/* Dashboard Metrics (RF-23, RF-25) */}
@@ -849,6 +852,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
     borderRadius: Spacing.one,
   },
+  logoutBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#e91e6344' },
   kpiContainer: {
     flexDirection: 'row',
     gap: Spacing.two,

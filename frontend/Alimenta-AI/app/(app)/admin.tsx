@@ -22,7 +22,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { Spacing, MaxContentWidth, BottomTabInset } from '@/constants/theme';
 
 export default function AdminScreen() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { data: dashData, isLoading: loadingDash, error: dashError, refresh: refreshDash } = useDashboard();
   const store = useStore();
   const theme = useTheme();
@@ -101,6 +101,9 @@ export default function AdminScreen() {
               Visão consolidada do Motor de Machine Learning e Auditoria
             </ThemedText>
           </View>
+          <Pressable onPress={logout} style={styles.logoutBtn}>
+            <ThemedText type="small" style={{ color: '#e91e63' }}>Sair</ThemedText>
+          </Pressable>
         </ThemedView>
 
         {/* SECTION 1: WEIGHTS CONFIGURATION (RF-16) */}
@@ -353,6 +356,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
     borderRadius: Spacing.one,
   },
+  logoutBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#e91e6344' },
   card: {
     borderRadius: Spacing.three,
     padding: Spacing.four,
