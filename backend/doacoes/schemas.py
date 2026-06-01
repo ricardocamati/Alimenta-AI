@@ -59,11 +59,13 @@ class DoacaoResponse(BaseModel):
     status: StatusDoacao
     urgencia: Urgencia
     score_matching: float | None = None
+    distancia_km: float | None = None
     criado_em: datetime
     atualizado_em: datetime
+    logs: list[LogAFDResponse] = []
 
     model_config = {"from_attributes": True}
 
 
 class DoacaoDetailedResponse(DoacaoResponse):
-    logs: list[LogAFDResponse] = []
+    pass  # Agora herda logs de DoacaoResponse

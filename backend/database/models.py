@@ -99,6 +99,7 @@ class Doacao(Base):
         Integer, ForeignKey("ongs.id", ondelete="SET NULL"), nullable=True
     )
     score_matching: Mapped[float | None] = mapped_column(Float, nullable=True)
+    distancia_km: Mapped[float | None] = mapped_column(Float, nullable=True)
     criado_em: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )

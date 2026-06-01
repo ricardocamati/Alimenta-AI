@@ -445,7 +445,7 @@ export default function NgoScreen() {
                           <View style={styles.matchMetaRow}>
                             <SymbolView name="location" size={11} tintColor={theme.textSecondary} />
                             <ThemedText type="code" style={styles.metaText}>
-                              Distância: {store.currentUser ? '1.2 km' : 'Calculando...'}
+                              Distância: {donation.distancia_km ? `${donation.distancia_km.toFixed(1)} km` : (donation.matchedNgoId ? 'Calculando...' : 'N/A')}
                             </ThemedText>
                             <View style={styles.metaDot} />
                             <SymbolView name="calendar" size={11} tintColor={theme.textSecondary} />

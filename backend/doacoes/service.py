@@ -86,6 +86,7 @@ async def listar_doacoes(
 ) -> list[Doacao]:
     result = await db.execute(
         select(Doacao)
+        .options(selectinload(Doacao.logs))
         .where(Doacao.doador_id == doador_id)
         .order_by(Doacao.criado_em.desc())
         .offset(offset)

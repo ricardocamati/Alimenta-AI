@@ -129,9 +129,10 @@ async def calcular_matching(doacao_id: int, db: AsyncSession) -> None:
             )
         )
 
-    melhor_ong, _, _, _, melhor_score = max(scores, key=lambda x: x[4])
+    melhor_ong, _, _, distancia_km, melhor_score = max(scores, key=lambda x: x[4])
     doacao.ong_matched_id = melhor_ong.id
-    doacao.score_matching = round(melhor_score, 4)
+    doacao.score_matching = round(melhor_score * 100, 2)  # Escala 0-100
+    doacao.distancia_km = round(distancia_km, 2)
     doacao.status = StatusDoacao.matched
 
     db.add(

@@ -16,6 +16,7 @@ export interface Donation {
   storageConditions: string;
   status: DonationStatus;
   matchScore: number;
+  distancia_km?: number;
   matchedNgoId: string;
   matchedNgoName: string;
   timestamp: string;

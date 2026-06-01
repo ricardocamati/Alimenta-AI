@@ -647,8 +647,10 @@ export default function DonorScreen() {
                   <View style={styles.ngoSuggestionBox}>
                     <SymbolView name="hands.sparkles.fill" size={22} tintColor="#ff9800" />
                     <View style={{ flex: 1, marginLeft: Spacing.two }}>
-                      <ThemedText type="smallBold">ONG Prato Cheio</ThemedText>
-                      <ThemedText type="code" style={{ fontSize: 10 }}>Score: 88.5/100 • Distância: 1.2 km</ThemedText>
+                      <ThemedText type="smallBold">{donation.matchedNgoName || 'Melhor ONG disponível'}</ThemedText>
+                      <ThemedText type="code" style={{ fontSize: 10 }}>
+                        Score: {donation.score_matching ? Math.round(donation.score_matching) : '0'}/100 • Distância: {donation.distancia_km ? `${donation.distancia_km.toFixed(1)} km` : 'Calculando...'}
+                      </ThemedText>
                     </View>
                     <View style={styles.matchScoreBadge}>
                       <ThemedText type="code" style={{ color: '#ffffff', fontSize: 10 }}>RECOMENDADA</ThemedText>
@@ -737,6 +739,28 @@ export default function DonorScreen() {
                       <ThemedText type="code" style={styles.donationTimeText}>
                         Cadastrado em {new Date(donation.criado_em).toLocaleDateString('pt-BR')} às {new Date(donation.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                       </ThemedText>
+
+                      {/* Mini Timeline de Logs (AFD) */}
+                      {donation.logs && donation.logs.length > 0 && (
+                        <View style={{ marginTop: Spacing.one, paddingLeft: Spacing.one }}>
+                          {donation.logs.slice(0, 3).map((log, idx) => (
+                            <View key={log.id} style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 }}>
+                              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#3c87f7', marginTop: 5, marginRight: 6 }} />
+                              <View style={{ flex: 1 }}>
+                                <ThemedText type="code" style={{ fontSize: 10 }}>
+                                  {log.estado_anterior || 'Início'} → {log.estado_novo}
+                                </ThemedText>
+                                {log.descricao && (
+                                  <ThemedText type="code" style={{ fontSize: 9, opacity: 0.6 }}>{log.descricao}</ThemedText>
+                                )}
+                                <ThemedText type="code" style={{ fontSize: 8, opacity: 0.4 }}>
+                                  {new Date(log.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                </ThemedText>
+                              </View>
+                            </View>
+                          ))}
+                        </View>
+                      )}
                     </View>
                   </ThemedView>
                 );

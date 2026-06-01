@@ -71,6 +71,8 @@ export interface DoacaoDTO {
   status: StatusDoacao;
   urgencia: Urgencia;
   score_matching: number | null;
+  distancia_km: number | null;
+  logs: LogAFDDTO[];
   criado_em: string;
   atualizado_em: string;
 }
