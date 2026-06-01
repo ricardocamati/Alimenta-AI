@@ -32,10 +32,11 @@ export function useDashboard() {
   }, [fetchDashboard]);
 
   useEffect(() => {
+    fetchDashboard();
     return () => {
       if (abortRef.current) abortRef.current.abort();
     };
-  }, []);
+  }, [fetchDashboard]);
 
   return { data, isLoading, error, refresh };
 }
