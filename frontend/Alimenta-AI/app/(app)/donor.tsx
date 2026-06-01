@@ -52,7 +52,7 @@ export default function DonorScreen() {
   const dash = dashData && 'perfil' in dashData && dashData.perfil === 'doador' ? dashData : null;
   const totalDonationsCount = dash?.total_doacoes || doacoes.length;
   const totalWeightKg = doacoes
-    .filter(d => d.status === 'confirmado' || d.status === 'coletado')
+    .filter(d => ['confirmado', 'coletado', 'notificado', 'matched'].includes(d.status))
     .reduce((acc, d) => acc + d.quantidade, 0);
   const pendingDonationsCount = doacoes.filter(d =>
     ['cadastrado', 'analisado', 'matched', 'notificado'].includes(d.status)
