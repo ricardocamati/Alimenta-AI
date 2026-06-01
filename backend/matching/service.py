@@ -4,7 +4,7 @@ import math
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import Doacao, LogAFD, ONG, ScoreMatching, StatusDoacao, Urgencia
+from database.models import Doacao, HistoricoAtendimento, LogAFD, ONG, ScoreMatching, StatusDoacao, Urgencia
 from ml.demand_predictor import DemandPredictor
 
 logger = logging.getLogger(__name__)
@@ -88,7 +88,22 @@ async def calcular_matching(doacao_id: int, db: AsyncSession) -> None:
 
     urgencia_peso = URGENCY_WEIGHTS.get(doacao.urgencia, 0.25)
 
-    demandas = [DemandPredictor.predict_demand(ong.id) for ong in ongs]
+    # Busca historico real de atendimento (se houver)
+    demandas: list[float] = []
+    for ong in ongs:
+        result = await db.execute(
+            select(HistoricoAtendimento.quantidade_atendida)
+            .where(HistoricoAtendimento.ong_id == ong.id)
+            .order_by(HistoricoAtendimento.semana.desc())
+            .limit(4)
+        )
+        valores = [r[0] for r in result.all()]
+        if len(valores) >= 2:
+            demandas.append(sum(valores) / len(valores))
+            logger.info("Demanda ONG %s: %.1f (historico real, n=%d)", ong.id, demandas[-1], len(valores))
+        else:
+            demandas.append(DemandPredictor.predict_demand(ong.id))
+            logger.info("Demanda ONG %s: %.1f (modelo/fallback)", ong.id, demandas[-1])
     distancias = [haversine(doacao_lat, doacao_lon, ong.latitude, ong.longitude) for ong in ongs]
 
     demandas_norm = _normalize(demandas)
@@ -98,14 +113,14 @@ async def calcular_matching(doacao_id: int, db: AsyncSession) -> None:
         delete(ScoreMatching).where(ScoreMatching.doacao_id == doacao_id)
     )
 
-    scores: list[tuple[ONG, float, float, float, float]] = []
+    scores: list[tuple[ONG, float, float, float, float, float]] = []
     for i, ong in enumerate(ongs):
         score = (
             0.4 * urgencia_peso
             + 0.4 * demandas_norm[i]
             - 0.2 * distancias_norm[i]
         )
-        scores.append((ong, urgencia_peso, demandas_norm[i], distancias_norm[i], score))
+        scores.append((ong, urgencia_peso, demandas_norm[i], distancias[i], distancias_norm[i], score))
         logger.info(
             "[Matching] ONG %s: urgencia=%.2f demanda=%.2f(norm) "
             "dist=%.1fkm=%.2f(norm) -> score=%.4f",
@@ -117,7 +132,7 @@ async def calcular_matching(doacao_id: int, db: AsyncSession) -> None:
             score,
         )
 
-    for ong, up, dp, dip, sf in scores:
+    for ong, up, dp, dkm, dip, sf in scores:
         db.add(
             ScoreMatching(
                 doacao_id=doacao_id,
@@ -129,7 +144,7 @@ async def calcular_matching(doacao_id: int, db: AsyncSession) -> None:
             )
         )
 
-    melhor_ong, _, _, distancia_km, melhor_score = max(scores, key=lambda x: x[4])
+    melhor_ong, _, _, distancia_km, _, melhor_score = max(scores, key=lambda x: x[5])
     doacao.ong_matched_id = melhor_ong.id
     doacao.score_matching = round(melhor_score * 100, 2)  # Escala 0-100
     doacao.distancia_km = round(distancia_km, 2)

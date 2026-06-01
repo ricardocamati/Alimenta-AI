@@ -16,6 +16,7 @@ class DoacaoCreate(BaseModel):
     tipo_alimento: str = Field(min_length=1, max_length=100)
     categoria: str = Field(min_length=1, max_length=100)
     quantidade: float
+    unidade_medida: str = Field(default="kg", min_length=1, max_length=20)
     data_validade: date
     foto_url: str | None = Field(default=None, max_length=500)
     latitude: float | None = Field(default=None, ge=-90, le=90)
@@ -58,6 +59,7 @@ class DoacaoResponse(BaseModel):
     tipo_alimento: str
     categoria: str
     quantidade: float
+    unidade_medida: str | None = None
     foto_url: str | None = None
     data_validade: date
     latitude: float | None = None

@@ -61,13 +61,42 @@ class DemandPredictor:
     """
 
     @staticmethod
-    def predict_demand(ong_id: int) -> float:
+    def predict_demand(ong_id: int, db_session=None) -> float:
+        """Retorna demanda prevista para a ONG.
+        
+        Prioridade:
+        1. Se db_session fornecido e houver historico real (>=2 semanas), usa media movel.
+        2. Cache do modelo treinado (demand_model.pkl).
+        3. Fallback global medio.
+        """
         key = str(ong_id)
+        
+        # 1. Tentar historico real do banco
+        if db_session is not None:
+            try:
+                from sqlalchemy import select, func
+                from database.models import HistoricoAtendimento
+                result = db_session.execute(
+                    select(HistoricoAtendimento.quantidade_atendida)
+                    .where(HistoricoAtendimento.ong_id == ong_id)
+                    .order_by(HistoricoAtendimento.semana.desc())
+                    .limit(4)
+                )
+                valores = [r[0] for r in result.all()]
+                if len(valores) >= 2:
+                    media = sum(valores) / len(valores)
+                    logger.info("Demanda ONG %s: %.1f (historico real, n=%d)", ong_id, media, len(valores))
+                    return media
+            except Exception:
+                pass  # Falha silenciosa, segue para cache
+
+        # 2. Cache do modelo
         if key in _demand_cache:
             val = _demand_cache[key]
-            logger.info("Demanda ONG %s: %.1f (cache)", ong_id, val)
+            logger.info("Demanda ONG %s: %.1f (cache modelo)", ong_id, val)
             return val
 
+        # 3. Fallback
         logger.info(
             "Demanda ONG %s: %.1f (fallback, ONG nao encontrada no modelo)",
             ong_id,

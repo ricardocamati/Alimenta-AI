@@ -15,6 +15,7 @@ import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/hooks/useAuth';
 import { useDashboard } from '@/hooks/useDashboard';
 import { useDoacoesOng } from '@/hooks/useDoacoesOng';
+import { useHistorico } from '@/hooks/useHistorico';
 import { ErrorMessage } from '@/components/ErrorMessage';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing, MaxContentWidth, BottomTabInset } from '@/constants/theme';
@@ -69,12 +70,17 @@ export default function NgoScreen() {
   const { user } = useAuth();
   const { data: dashData, isLoading: loadingDash, error: dashError } = useDashboard();
   const { doacoes, isLoading, error, refresh, atualizarStatus } = useDoacoesOng();
+  const { historico, isLoading: isLoadingHist, error: errorHist, refresh: refreshHist, registrar } = useHistorico();
   const theme = useTheme();
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [notes, setNotes] = useState('');
   const [loadingAction, setLoadingAction] = useState(false);
   const [msg, setMsg] = useState('');
+  const [semanaInput, setSemanaInput] = useState('');
+  const [qtdInput, setQtdInput] = useState('');
+  const [loadingHist, setLoadingHist] = useState(false);
+  const [msgHist, setMsgHist] = useState('');
 
   const dash = dashData && 'perfil' in dashData && dashData.perfil === 'ong' ? dashData : null;
 
@@ -200,6 +206,89 @@ export default function NgoScreen() {
             </View>
           </ThemedView>
         )}
+
+        {/* HISTÓRICO: Registrar Atendimento */}
+        <ThemedView type="backgroundElement" style={styles.historicoContainer}>
+          <View style={styles.listHeader}>
+            <ThemedText type="smallBold">Atendimento Semanal</ThemedText>
+            <Pressable onPress={refreshHist} style={styles.refreshBtn}>
+              <SymbolView name="arrow.clockwise" size={14} tintColor={theme.textSecondary} />
+            </Pressable>
+          </View>
+          <ThemedText type="small" themeColor="textSecondary" style={styles.listDesc}>
+            Registre quantas pessoas (ou kg) sua ONG atendeu por semana. Isso melhora as previsões de demanda.
+          </ThemedText>
+
+          <View style={styles.formRow}>
+            <TextInput
+              style={[styles.formInput, { flex: 1, color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
+              placeholder="AAAA-MM-DD (segunda)"
+              placeholderTextColor={theme.textSecondary}
+              value={semanaInput}
+              onChangeText={setSemanaInput}
+            />
+            <TextInput
+              style={[styles.formInput, { flex: 1, color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
+              placeholder="Qtd atendida (kg)"
+              placeholderTextColor={theme.textSecondary}
+              keyboardType="numeric"
+              value={qtdInput}
+              onChangeText={setQtdInput}
+            />
+            <Pressable
+              style={[styles.btn, { backgroundColor: '#2196f3', flex: 0.6 }]}
+              onPress={async () => {
+                if (!semanaInput || !qtdInput) return;
+                setLoadingHist(true);
+                setMsgHist('');
+                const result = await registrar({
+                  semana: semanaInput,
+                  quantidade_atendida: parseInt(qtdInput, 10),
+                });
+                setLoadingHist(false);
+                if (result) {
+                  setMsgHist('Registrado com sucesso!');
+                  setSemanaInput('');
+                  setQtdInput('');
+                  setTimeout(() => setMsgHist(''), 3000);
+                }
+              }}
+              disabled={loadingHist}
+            >
+              <ThemedText type="code" style={styles.btnText}>Salvar</ThemedText>
+            </Pressable>
+          </View>
+
+          {msgHist !== '' && (
+            <View style={styles.msgBanner}>
+              <ThemedText type="small" style={{ color: '#4caf50' }}>{msgHist}</ThemedText>
+            </View>
+          )}
+
+          {(loadingHist || isLoadingHist) && (
+            <ActivityIndicator style={{ margin: 12 }} color="#3c87f7" />
+          )}
+
+          {errorHist && <ErrorMessage message={errorHist} />}
+
+          {!isLoadingHist && historico.length === 0 && (
+            <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
+              Nenhum registro de atendimento ainda.
+            </ThemedText>
+          )}
+
+          {historico.map((h) => (
+            <View key={h.id} style={[styles.historicoRow, { borderColor: theme.backgroundSelected }]}>
+              <SymbolView name="calendar" size={14} tintColor={theme.textSecondary} />
+              <ThemedText type="code" style={{ marginLeft: 8, flex: 1 }}>
+                Semana {h.semana}
+              </ThemedText>
+              <ThemedText type="code" style={{ fontWeight: '700' }}>
+                {h.quantidade_atendida} kg
+              </ThemedText>
+            </View>
+          ))}
+        </ThemedView>
 
         {/* MATCHING LIST */}
         <ThemedView type="backgroundElement" style={styles.listContainer}>
@@ -399,4 +488,10 @@ const styles = StyleSheet.create({
   chartLegend: { flexDirection: 'row', gap: Spacing.three, justifyContent: 'center', marginTop: Spacing.one },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendBox: { width: 12, height: 12, borderRadius: 3 },
+
+  // Estilos do histórico
+  historicoContainer: { marginTop: Spacing.three, borderRadius: 16, padding: Spacing.three, borderWidth: 1, borderColor: '#333' },
+  formRow: { flexDirection: 'row', gap: Spacing.two, marginBottom: Spacing.two },
+  formInput: { borderWidth: 1, borderRadius: 10, padding: 10, fontSize: 13 },
+  historicoRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.two, borderBottomWidth: 1, borderColor: '#333' },
 });

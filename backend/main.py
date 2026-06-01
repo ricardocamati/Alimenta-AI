@@ -9,6 +9,7 @@ from auth import auth_router
 from config import settings
 from dashboard import dashboard_router
 from doacoes import doacoes_router
+from historico import router as historico_router
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +162,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(doacoes_router)
+app.include_router(historico_router)
 app.include_router(dashboard_router)
 
 

@@ -110,6 +110,7 @@ export interface DashboardDoadorDTO {
 export interface DashboardONGDTO {
   perfil: 'ong';
   total_doacoes_recebidas: number;
+  total_kg_recebidos: number;
   demanda_prevista_proxima_semana: number;
   alerta_escassez: boolean;
   doacoes_pendentes: number;
@@ -137,3 +138,10 @@ export interface DashboardAdminDTO {
 }
 
 export type DashboardResponseDTO = DashboardDoadorDTO | DashboardONGDTO | DashboardAdminDTO;
+
+export interface HistoricoAtendimentoDTO {
+  id: number;
+  ong_id: number;
+  semana: string;
+  quantidade_atendida: number;
+}

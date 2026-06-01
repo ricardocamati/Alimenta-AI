@@ -5,25 +5,61 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from database.models import Doacao, LogAFD, ONG, StatusDoacao, Urgencia
+from database.models import Doacao, LogAFD, ONG, StatusDoacao, Urgencia, Usuario
 from doacoes.schemas import DoacaoCreate
 from ml.predictor import UrgencyPredictor
 
 logger = logging.getLogger(__name__)
 
 
+async def _resolve_gps_doacao(
+    db: AsyncSession,
+    payload: DoacaoCreate,
+    doador_id: int,
+) -> tuple[float | None, float | None]:
+    """Tenta obter lat/lon do payload, do doador ou via geocoding do endereco."""
+    if payload.latitude is not None and payload.longitude is not None:
+        return payload.latitude, payload.longitude
+
+    # Tenta pegar do doador
+    result = await db.execute(select(Usuario).where(Usuario.id == doador_id))
+    doador = result.scalar_one_or_none()
+    if doador and doador.latitude is not None and doador.longitude is not None:
+        logger.info("Usando GPS do doador %s: %s, %s", doador_id, doador.latitude, doador.longitude)
+        return doador.latitude, doador.longitude
+
+    # Tenta geocodificar o endereco do doador
+    if doador and doador.endereco:
+        from matching.geocoding import geocode_address
+        coords = await geocode_address(doador.endereco)
+        if coords:
+            lat, lon = coords
+            # Persiste no usuario para evitar geocoding repetido
+            doador.latitude = lat
+            doador.longitude = lon
+            logger.info("Geocodificado endereco do doador %s: %s, %s", doador_id, lat, lon)
+            return lat, lon
+        else:
+            logger.warning("Falha ao geocodificar endereco do doador %s: %s", doador_id, doador.endereco)
+
+    return None, None
+
+
 async def criar_doacao(
     db: AsyncSession, payload: DoacaoCreate, doador_id: int
 ) -> Doacao:
+    lat, lon = await _resolve_gps_doacao(db, payload, doador_id)
+
     doacao = Doacao(
         doador_id=doador_id,
         tipo_alimento=payload.tipo_alimento,
         categoria=payload.categoria,
         quantidade=payload.quantidade,
+        unidade_medida=payload.unidade_medida or "kg",
         data_validade=payload.data_validade,
         foto_url=payload.foto_url,
-        latitude=payload.latitude,
-        longitude=payload.longitude,
+        latitude=lat,
+        longitude=lon,
         status=StatusDoacao.cadastrado,
     )
     db.add(doacao)
@@ -78,7 +114,13 @@ async def criar_doacao(
 
     await db.commit()
     await db.refresh(doacao)
-    return doacao
+    # Eager-load para serializacao Pydantic (evita MissingGreenlet)
+    result = await db.execute(
+        select(Doacao)
+        .options(selectinload(Doacao.doador), selectinload(Doacao.logs))
+        .where(Doacao.id == doacao.id)
+    )
+    return result.scalar_one()
 
 
 async def listar_doacoes(
@@ -86,7 +128,7 @@ async def listar_doacoes(
 ) -> list[Doacao]:
     result = await db.execute(
         select(Doacao)
-        .options(selectinload(Doacao.logs))
+        .options(selectinload(Doacao.logs), selectinload(Doacao.doador))
         .where(Doacao.doador_id == doador_id)
         .order_by(Doacao.criado_em.desc())
         .offset(offset)
@@ -100,7 +142,7 @@ async def buscar_doacao_por_id(
 ) -> Doacao | None:
     result = await db.execute(
         select(Doacao)
-        .options(selectinload(Doacao.logs))
+        .options(selectinload(Doacao.logs), selectinload(Doacao.doador))
         .where(Doacao.id == doacao_id, Doacao.doador_id == doador_id)
     )
     return result.scalar_one_or_none()
