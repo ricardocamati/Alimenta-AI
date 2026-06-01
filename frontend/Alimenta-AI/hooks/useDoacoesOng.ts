@@ -20,10 +20,11 @@ export function useDoacoesOng() {
     try {
       if (abortRef.current) abortRef.current.abort();
       abortRef.current = new AbortController();
-      const response = await api.get<DoacaoOngDTO[]>('/doacoes/ongs/me/doacoes', {
+      // O interceptor de response retorna response.data diretamente
+      const data = await api.get<DoacaoOngDTO[]>('/doacoes/ongs/me/doacoes', {
         signal: abortRef.current.signal,
       });
-      setDoacoes(response.data);
+      setDoacoes(data as any);
     } catch (err: any) {
       if (err.name === 'AbortError') return;
       setError(err.response?.data?.detail || err.message || 'Erro ao carregar doações');
@@ -38,12 +39,13 @@ export function useDoacoesOng() {
     observacao?: string
   ): Promise<DoacaoOngDTO | null> => {
     try {
-      const response = await api.patch<DoacaoOngDTO>(`/doacoes/${doacaoId}/status`, {
+      // O interceptor de response retorna response.data diretamente
+      const data = await api.patch<DoacaoOngDTO>(`/doacoes/${doacaoId}/status`, {
         status,
         observacao,
       });
-      setDoacoes(prev => prev.map(d => d.id === response.data.id ? response.data : d));
-      return response.data;
+      setDoacoes(prev => prev.map(d => d.id === (data as any).id ? (data as any) : d));
+      return data as any;
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || 'Erro ao atualizar status');
       return null;
