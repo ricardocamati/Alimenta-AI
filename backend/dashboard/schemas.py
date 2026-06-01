@@ -52,6 +52,7 @@ class DashboardDoador(BaseModel):
 class DashboardONG(BaseModel):
     perfil: Literal["ong"] = "ong"
     total_doacoes_recebidas: int
+    total_kg_recebidos: float
     demanda_prevista_proxima_semana: float
     alerta_escassez: bool
     doacoes_pendentes: int

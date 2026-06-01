@@ -132,7 +132,7 @@ export default function NgoScreen() {
           </View>
         )}
 
-        {/* CHART: Demanda vs Prevista */}
+                {/* CHART: Demanda vs Prevista */}
         {dash?.demanda_prevista_proxima_semana && (
           <ThemedView type="backgroundElement" style={styles.chartContainer}>
             <View style={styles.chartHeader}>
@@ -152,9 +152,20 @@ export default function NgoScreen() {
                 {/* Histórico real */}
                 <View style={styles.chartBarCol}>
                   <View style={styles.barOuter}>
-                    <View style={[styles.barInner, styles.barActual]} />
+                    <View 
+                      style={[
+                        styles.barInner, 
+                        styles.barActual, 
+                        { 
+                          height: `${Math.min(
+                            ((dash?.total_kg_recebidos || 0) / ((dash?.demanda_prevista_proxima_semana || 1) * 1.3)) * 100, 
+                            100
+                          )}%` 
+                        }
+                      ]} 
+                    />
                     <ThemedText type="code" style={styles.barValueLabel}>
-                      {dash?.total_doacoes_recebidas ?? 0}
+                      {dash?.total_kg_recebidos ?? 0} kg
                     </ThemedText>
                   </View>
                   <ThemedText type="code" style={styles.barLabel}>Recebido</ThemedText>
@@ -162,9 +173,15 @@ export default function NgoScreen() {
                 {/* Demanda prevista */}
                 <View style={styles.chartBarCol}>
                   <View style={styles.barOuter}>
-                    <View style={[styles.barInner, styles.barPrediction]} />
+                    <View 
+                      style={[
+                        styles.barInner, 
+                        styles.barPrediction, 
+                        { height: `${Math.min(((dash?.demanda_prevista_proxima_semana || 0) / ((dash?.demanda_prevista_proxima_semana || 1) * 1.3)) * 100, 100)}%` }
+                      ]} 
+                    />
                     <ThemedText type="code" style={styles.barValueLabel}>
-                      {Math.round(dash?.demanda_prevista_proxima_semana ?? 0)}
+                      {Math.round(dash?.demanda_prevista_proxima_semana ?? 0)} kg
                     </ThemedText>
                   </View>
                   <ThemedText type="code" style={styles.barLabel}>Previsto</ThemedText>
@@ -375,8 +392,8 @@ const styles = StyleSheet.create({
   chartBarCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', height: '100%' },
   barOuter: { width: 50, height: '85%', justifyContent: 'flex-end', alignItems: 'center', position: 'relative' },
   barInner: { width: '70%', borderRadius: 4 },
-  barActual: { backgroundColor: '#3c87f7', height: '60%' },
-  barPrediction: { backgroundColor: '#9c27b0', height: '80%' },
+  barActual: { backgroundColor: '#3c87f7' },
+  barPrediction: { backgroundColor: '#9c27b0' },
   barValueLabel: { fontSize: 11, fontWeight: '700', marginBottom: 4 },
   barLabel: { fontSize: 10, opacity: 0.6, marginTop: 4 },
   chartLegend: { flexDirection: 'row', gap: Spacing.three, justifyContent: 'center', marginTop: Spacing.one },

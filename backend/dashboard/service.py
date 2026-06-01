@@ -147,6 +147,18 @@ async def get_ong_dashboard(db: AsyncSession, user: Usuario) -> DashboardONG:
         )
     ) or 0
 
+    # --- NOVO: somar quilos confirmados ---
+    kg_recebidos = await db.scalar(
+        select(func.sum(Doacao.quantidade))
+        .select_from(Doacao)
+        .where(
+            Doacao.ong_matched_id == ong_id,
+            Doacao.status == StatusDoacao.confirmado,
+        )
+    ) or 0.0
+    total_kg_recebidos = round(float(kg_recebidos), 1)
+    # --- FIM NOVO ---
+
     demanda_prevista = DemandPredictor.predict_demand(ong_id)
 
     media_qtd = await db.scalar(
@@ -177,6 +189,7 @@ async def get_ong_dashboard(db: AsyncSession, user: Usuario) -> DashboardONG:
 
     return DashboardONG(
         total_doacoes_recebidas=recebidas,
+        total_kg_recebidos=total_kg_recebidos,
         demanda_prevista_proxima_semana=demanda_prevista,
         alerta_escassez=alerta,
         doacoes_pendentes=pendentes,
