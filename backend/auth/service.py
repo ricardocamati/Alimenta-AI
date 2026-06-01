@@ -1,6 +1,7 @@
 import asyncio
 import logging
 
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from auth.schemas import UsuarioCreate
@@ -48,18 +49,16 @@ def register(db: Session, payload: UsuarioCreate) -> Usuario:
                     finally:
                         loop.close()
                 if result is None:
-                    lat, lon = 0.0, 0.0
-                    logger.warning(
-                        "Geocodificacao falhou para ONG %s. Usando (0.0, 0.0).",
-                        payload.email,
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Nao foi possivel geocodificar o endereco: {payload.endereco}. Forneca latitude/longitude explicitos.",
                     )
                 else:
                     lat, lon = result
             else:
-                lat, lon = 0.0, 0.0
-                logger.warning(
-                    "ONG %s sem endereco e sem GPS. Usando (0.0, 0.0).",
-                    payload.email,
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="ONG requer endereco ou latitude/longitude para geolocalizacao.",
                 )
 
         ong = ONG(

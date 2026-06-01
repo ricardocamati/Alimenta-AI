@@ -132,3 +132,45 @@ app.include_router(dashboard_router)
 @app.get("/")
 async def root():
     return {"message": "Alimenta.AI API"}
+
+
+@app.get("/health")
+async def health_check():
+    from database.connection import async_engine
+    from ml.predictor import _pipeline
+    from ml.demand_predictor import _sf
+
+    status = {"api": "ok", "version": "0.1.0"}
+    healthy = True
+
+    # Check DB
+    try:
+        from sqlalchemy import text
+        async with async_engine.connect() as conn:
+            result = await conn.execute(text("SELECT 1"))
+            await result.fetchone()
+        status["database"] = "ok"
+    except Exception:
+        status["database"] = "error"
+        healthy = False
+
+    # Check ML models
+    status["ml_urgency_model"] = "loaded" if _pipeline is not None else "missing"
+    status["ml_demand_model"] = "loaded" if _sf is not None else "missing"
+    if _pipeline is None or _sf is None:
+        healthy = False
+
+    # Check disk
+    import shutil
+    total, used, free = shutil.disk_usage("/home/rick/alimenta-ai-clone/backend")
+    free_gb = free / (1024**3)
+    status["disk_free_gb"] = round(free_gb, 2)
+    if free_gb < 0.5:
+        status["disk"] = "low"
+        healthy = False
+    else:
+        status["disk"] = "ok"
+
+    from fastapi.responses import JSONResponse
+    code = 200 if healthy else 503
+    return JSONResponse(content=status, status_code=code)
