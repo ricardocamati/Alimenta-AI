@@ -759,27 +759,15 @@ export default function DonorScreen() {
                         Cadastrado em {new Date(donation.criado_em).toLocaleDateString('pt-BR')} às {new Date(donation.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                       </ThemedText>
 
-                      {/* Mini Timeline de Logs (AFD) */}
-                      {donation.logs && donation.logs.length > 0 && (
-                        <View style={{ marginTop: Spacing.one, paddingLeft: Spacing.one }}>
-                          {donation.logs.slice(0, 3).map((log, idx) => (
-                            <View key={log.id} style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 }}>
-                              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#3c87f7', marginTop: 5, marginRight: 6 }} />
-                              <View style={{ flex: 1 }}>
-                                <ThemedText type="code" style={{ fontSize: 10 }}>
-                                  {log.estado_anterior || 'Início'} → {log.estado_novo}
-                                </ThemedText>
-                                {log.descricao && (
-                                  <ThemedText type="code" style={{ fontSize: 9, opacity: 0.6 }}>{log.descricao}</ThemedText>
-                                )}
-                                <ThemedText type="code" style={{ fontSize: 8, opacity: 0.4 }}>
-                                  {new Date(log.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                </ThemedText>
-                              </View>
-                            </View>
-                          ))}
+                      {/* Status simples: Cadastrado → Correspondente */}
+                      <View style={{ marginTop: Spacing.one, paddingLeft: Spacing.one }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#4caf50', marginRight: Spacing.one }} />
+                          <ThemedText type="code" style={{ fontSize: 10 }}>
+                            {donation.status === 'cadastrado' ? 'Cadastrado' : 'Correspondente'}
+                          </ThemedText>
                         </View>
-                      )}
+                      </View>
                     </View>
                   </ThemedView>
                 );
