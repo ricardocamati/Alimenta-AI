@@ -135,12 +135,15 @@ async def atualizar_status_doacao(
     novo_status: str,
     observacao: str | None,
 ) -> Doacao | None:
-    doacao = await db.scalar(
-        select(Doacao).where(
+    result = await db.execute(
+        select(Doacao)
+        .options(selectinload(Doacao.logs), selectinload(Doacao.doador))
+        .where(
             Doacao.id == doacao_id,
             Doacao.ong_matched_id == ong_id,
         )
     )
+    doacao = result.scalar_one_or_none()
     if doacao is None:
         return None
 
@@ -159,5 +162,10 @@ async def atualizar_status_doacao(
     )
     db.add(log)
     await db.commit()
-    await db.refresh(doacao)
-    return doacao
+    # Recarrega com eager load para serializacao Pydantic
+    result2 = await db.execute(
+        select(Doacao)
+        .options(selectinload(Doacao.logs), selectinload(Doacao.doador))
+        .where(Doacao.id == doacao_id)
+    )
+    return result2.scalar_one_or_none()
