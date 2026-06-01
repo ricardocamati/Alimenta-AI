@@ -118,7 +118,7 @@ export default function NgoScreen() {
           </View>
           <View style={[styles.statCard, { backgroundColor: theme.backgroundSelected }]}>
             <ThemedText type="subtitle">{dash?.demanda_prevista_proxima_semana?.toFixed(0) ?? 0}</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">Demanda (Semana)</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">Demanda (kg)</ThemedText>
           </View>
         </View>
 
@@ -130,6 +130,58 @@ export default function NgoScreen() {
               Alerta de escassez detectado! Demanda prevista acima da capacidade.
             </ThemedText>
           </View>
+        )}
+
+        {/* CHART: Demanda vs Prevista */}
+        {dash?.demanda_prevista_proxima_semana && (
+          <ThemedView type="backgroundElement" style={styles.chartContainer}>
+            <View style={styles.chartHeader}>
+              <SymbolView name="chart.bar.xaxis" size={18} tintColor="#2196f3" />
+              <ThemedText type="smallBold" style={{ marginLeft: 8 }}>
+                Demanda Prevista vs Histórico
+              </ThemedText>
+            </View>
+            <View style={styles.chartBody}>
+              <View style={styles.chartYAxis}>
+                <ThemedText type="code" style={styles.yAxisLabel}>{Math.round((dash?.demanda_prevista_proxima_semana || 0) * 1.3)}</ThemedText>
+                <ThemedText type="code" style={styles.yAxisLabel}>{Math.round((dash?.demanda_prevista_proxima_semana || 0) * 0.8)}</ThemedText>
+                <ThemedText type="code" style={styles.yAxisLabel}>{Math.round((dash?.demanda_prevista_proxima_semana || 0) * 0.4)}</ThemedText>
+                <ThemedText type="code" style={styles.yAxisLabel}>0</ThemedText>
+              </View>
+              <View style={styles.chartBarsArea}>
+                {/* Histórico real */}
+                <View style={styles.chartBarCol}>
+                  <View style={styles.barOuter}>
+                    <View style={[styles.barInner, styles.barActual]} />
+                    <ThemedText type="code" style={styles.barValueLabel}>
+                      {dash?.total_doacoes_recebidas ?? 0}
+                    </ThemedText>
+                  </View>
+                  <ThemedText type="code" style={styles.barLabel}>Recebido</ThemedText>
+                </View>
+                {/* Demanda prevista */}
+                <View style={styles.chartBarCol}>
+                  <View style={styles.barOuter}>
+                    <View style={[styles.barInner, styles.barPrediction]} />
+                    <ThemedText type="code" style={styles.barValueLabel}>
+                      {Math.round(dash?.demanda_prevista_proxima_semana ?? 0)}
+                    </ThemedText>
+                  </View>
+                  <ThemedText type="code" style={styles.barLabel}>Previsto</ThemedText>
+                </View>
+              </View>
+            </View>
+            <View style={styles.chartLegend}>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendBox, { backgroundColor: '#3c87f7' }]} />
+                <ThemedText type="code" style={{ fontSize: 10 }}>Atendimento Real (kg)</ThemedText>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendBox, { backgroundColor: '#9c27b0' }]} />
+                <ThemedText type="code" style={{ fontSize: 10 }}>Demanda Prevista (kg)</ThemedText>
+              </View>
+            </View>
+          </ThemedView>
         )}
 
         {/* MATCHING LIST */}
@@ -312,4 +364,22 @@ const styles = StyleSheet.create({
   btnRow: { flexDirection: 'row', gap: Spacing.two, marginTop: Spacing.three },
   btn: { flex: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
   btnText: { color: '#ffffff', fontSize: 12, fontWeight: '600' },
+
+  // Estilos do gráfico
+  chartContainer: { marginTop: Spacing.three, borderRadius: 16, padding: Spacing.three, borderWidth: 1, borderColor: '#333' },
+  chartHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.two },
+  chartBody: { flexDirection: 'row', height: 140, marginBottom: Spacing.two },
+  chartYAxis: { width: 40, justifyContent: 'space-between', alignItems: 'flex-end', paddingRight: 8 },
+  yAxisLabel: { fontSize: 10, opacity: 0.5 },
+  chartBarsArea: { flex: 1, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-end' },
+  chartBarCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', height: '100%' },
+  barOuter: { width: 50, height: '85%', justifyContent: 'flex-end', alignItems: 'center', position: 'relative' },
+  barInner: { width: '70%', borderRadius: 4 },
+  barActual: { backgroundColor: '#3c87f7', height: '60%' },
+  barPrediction: { backgroundColor: '#9c27b0', height: '80%' },
+  barValueLabel: { fontSize: 11, fontWeight: '700', marginBottom: 4 },
+  barLabel: { fontSize: 10, opacity: 0.6, marginTop: 4 },
+  chartLegend: { flexDirection: 'row', gap: Spacing.three, justifyContent: 'center', marginTop: Spacing.one },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendBox: { width: 12, height: 12, borderRadius: 3 },
 });
