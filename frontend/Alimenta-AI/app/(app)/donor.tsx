@@ -46,8 +46,8 @@ export default function DonorScreen() {
   const theme = useTheme();
 
   const isDonorLoggedIn = !!(user && user.tipo === 'doador');
-  const activeDonorId = isDonorLoggedIn ? String(user!.id) : 'donor_1';
-  const activeDonorName = isDonorLoggedIn ? user!.nome : 'Supermercado Central';
+  const activeDonorId = isDonorLoggedIn ? String(user!.id) : '';
+  const activeDonorName = isDonorLoggedIn ? user!.nome : (user?.nome || 'Visitante');
 
   const dash = dashData && 'perfil' in dashData && dashData.perfil === 'doador' ? dashData : null;
   const totalDonationsCount = dash?.total_doacoes || doacoes.length;
@@ -273,7 +273,23 @@ export default function DonorScreen() {
 
   const getDonationPhoto = (donation: DoacaoDTO) => {
     const photoValue = donation.foto_url;
-    const preset = FOOD_PHOTOS.find(p => p.id === 'vegetables');
+    // Infer photo preset from food type / name
+    const tipo = (donation.tipo_alimento || '').toLowerCase();
+    let photoId = 'vegetables'; // default fallback
+    if (tipo.includes('carne') || tipo.includes('frango') || tipo.includes('peixe')) {
+      photoId = 'meats';
+    } else if (tipo.includes('pão') || tipo.includes('padaria') || tipo.includes('bolo')) {
+      photoId = 'bread';
+    } else if (tipo.includes('leite') || tipo.includes('laticínio') || tipo.includes('queijo') || tipo.includes('iogurte')) {
+      photoId = 'milk';
+    } else if (tipo.includes('tomate')) {
+      photoId = 'tomatoes';
+    } else if (tipo.includes('laranja') || tipo.includes('cítrico')) {
+      photoId = 'oranges';
+    } else if (tipo.includes('verdura') || tipo.includes('legume') || tipo.includes('fruta') || tipo.includes('vegetal')) {
+      photoId = 'vegetables';
+    }
+    const preset = FOOD_PHOTOS.find(p => p.id === photoId);
     return { preset: preset || FOOD_PHOTOS[4], uri: photoValue || null };
   };
 

@@ -67,38 +67,15 @@ async def get_current_user_with_ong(
 
 
 @router.post("/register", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)
-def register_endpoint(payload: UsuarioCreate, db=Depends(get_db)):
-    existente = db.query(Usuario).filter(Usuario.email == payload.email).first()
-    if existente:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Email ja cadastrado",
-        )
-    if payload.cpf_cnpj:
-        cpf_cnpj_existente = (
-            db.query(Usuario).filter(Usuario.cpf_cnpj == payload.cpf_cnpj).first()
-        )
-        if cpf_cnpj_existente:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="CPF/CNPJ ja cadastrado",
-            )
-    if payload.ong is not None and payload.ong.cnpj:
-        cnpj_existente = (
-            db.query(ONG).filter(ONG.cnpj == payload.ong.cnpj).first()
-        )
-        if cnpj_existente:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="CNPJ da ONG ja cadastrado",
-            )
-    usuario = register(db, payload)
-    return usuario
+async def register_endpoint(payload: UsuarioCreate, db: AsyncSession = Depends(async_get_db)):
+    from auth.service import register_async
+    return await register_async(db, payload)
 
 
 @router.post("/login", response_model=TokenResponse)
-def login_endpoint(payload: LoginRequest, db=Depends(get_db)):
-    usuario = authenticate(db, payload.email, payload.senha)
+async def login_endpoint(payload: LoginRequest, db: AsyncSession = Depends(async_get_db)):
+    from auth.service import authenticate_async
+    usuario = await authenticate_async(db, payload.email, payload.senha)
     if not usuario:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
