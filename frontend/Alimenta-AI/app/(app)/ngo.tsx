@@ -73,6 +73,16 @@ export default function NgoScreen() {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
+  // Recebimento preferences state
+  const [configExpanded, setConfigExpanded] = useState(false);
+  const [editCapacity, setEditCapacity] = useState(String(currentNgo.capacity || 250));
+  const [editRadius, setEditRadius] = useState(String(currentNgo.pickupRadius || 10));
+  const [editFoodTypes, setEditFoodTypes] = useState<string[]>([...(currentNgo.acceptedFoodTypes || [])]);
+  const [editSchedule, setEditSchedule] = useState(currentNgo.pickupSchedule || '');
+  const [configSaved, setConfigSaved] = useState(false);
+
+  const FOOD_TYPE_OPTIONS = ['Frutas', 'Verduras/Legumes', 'Carnes', 'Laticínios', 'Grãos/Cereais', 'Pães/Padaria', 'Não-perecíveis'];
+
   // Filter donations and notifications for this specific NGO
   // Display only matched donations
   const matchedDonations = store.donations.filter(d => d.matchedNgoId === activeNgoId);
@@ -143,6 +153,29 @@ export default function NgoScreen() {
     }
   };
 
+  const handleSavePreferences = () => {
+    const cap = parseInt(editCapacity, 10);
+    const rad = parseFloat(editRadius);
+    if (isNaN(cap) || cap <= 0) return;
+    if (isNaN(rad) || rad <= 0) return;
+    store.updateNgoPreferences(activeNgoId, {
+      capacity: cap,
+      pickupRadius: rad,
+      acceptedFoodTypes: editFoodTypes,
+      pickupSchedule: editSchedule,
+    });
+    setConfigSaved(true);
+    setTimeout(() => setConfigSaved(false), 3000);
+  };
+
+  const toggleFoodType = (type: string) => {
+    if (editFoodTypes.includes(type)) {
+      setEditFoodTypes(editFoodTypes.filter(t => t !== type));
+    } else {
+      setEditFoodTypes([...editFoodTypes, type]);
+    }
+  };
+
   // Met vs Predicted Demand Report simulation data (RF-24)
   // We compare history weekly attendance against capacity and forecasted demand
   const weeklyLabels = ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4', 'Semana 5 (Prevista)'];
@@ -190,6 +223,111 @@ export default function NgoScreen() {
             <ThemedText type="code" style={styles.kpiLabel}>Capacidade Semanal</ThemedText>
           </ThemedView>
         </View>
+        
+        {/* CONFIGURAÇÃO DE RECEBIMENTO */}
+        <ThemedView type="backgroundElement" style={styles.configContainer}>
+          <Pressable 
+            style={styles.configHeader}
+            onPress={() => setConfigExpanded(!configExpanded)}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.one }}>
+              <SymbolView name="gearshape" size={20} tintColor="#ff9800" />
+              <ThemedText type="smallBold">Configuração de Recebimento</ThemedText>
+            </View>
+            <SymbolView 
+              name={configExpanded ? 'chevron.up' : 'chevron.down'} 
+              size={16} 
+              tintColor={theme.textSecondary} 
+            />
+          </Pressable>
+
+          {configExpanded && (
+            <View style={styles.configBody}>
+              {/* Capacity */}
+              <View style={styles.configRow}>
+                <ThemedText type="code" style={styles.configLabel}>Capacidade Semanal (kg)</ThemedText>
+                <TextInput 
+                  style={[styles.configInput, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
+                  keyboardType="numeric"
+                  value={editCapacity}
+                  onChangeText={setEditCapacity}
+                  placeholderTextColor={theme.textSecondary}
+                />
+              </View>
+
+              {/* Pickup radius */}
+              <View style={styles.configRow}>
+                <ThemedText type="code" style={styles.configLabel}>Raio de Coleta (km)</ThemedText>
+                <TextInput 
+                  style={[styles.configInput, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
+                  keyboardType="numeric"
+                  value={editRadius}
+                  onChangeText={setEditRadius}
+                  placeholderTextColor={theme.textSecondary}
+                />
+              </View>
+
+              {/* Accepted food types */}
+              <View style={styles.configRow}>
+                <ThemedText type="code" style={styles.configLabel}>Tipos de Alimento Aceitos</ThemedText>
+                <View style={styles.foodTypesGrid}>
+                  {FOOD_TYPE_OPTIONS.map(type => {
+                    const selected = editFoodTypes.includes(type);
+                    return (
+                      <Pressable
+                        key={type}
+                        onPress={() => toggleFoodType(type)}
+                        style={[
+                          styles.foodTypeChip,
+                          selected && styles.foodTypeChipSelected,
+                          { borderColor: theme.backgroundSelected }
+                        ]}
+                      >
+                        <SymbolView 
+                          name={selected ? 'checkmark.circle.fill' : 'circle'} 
+                          size={14} 
+                          tintColor={selected ? '#4caf50' : theme.textSecondary} 
+                        />
+                        <ThemedText type="code" style={[styles.foodTypeLabel, selected && { color: '#4caf50', fontWeight: 'bold' }]}>
+                          {type}
+                        </ThemedText>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Pickup schedule */}
+              <View style={styles.configRow}>
+                <ThemedText type="code" style={styles.configLabel}>Horários de Coleta</ThemedText>
+                <TextInput 
+                  style={[styles.configInput, styles.configInputMultiline, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
+                  multiline
+                  numberOfLines={3}
+                  value={editSchedule}
+                  onChangeText={setEditSchedule}
+                  placeholder="Ex: Seg-Sex: 08h-12h / 14h-18h"
+                  placeholderTextColor={theme.textSecondary}
+                />
+              </View>
+
+              {/* Save button */}
+              <Pressable 
+                style={[styles.configSaveBtn, { backgroundColor: '#ff9800' }]}
+                onPress={handleSavePreferences}
+              >
+                <SymbolView name="checkmark.circle" size={16} tintColor="#ffffff" />
+                <ThemedText type="code" style={styles.configSaveBtnText}>Salvar Preferências</ThemedText>
+              </Pressable>
+
+              {configSaved && (
+                <View style={styles.configSavedBanner}>
+                  <ThemedText type="small" style={{ color: '#ffffff' }}>Preferências salvas com sucesso!</ThemedText>
+                </View>
+              )}
+            </View>
+          )}
+        </ThemedView>
 
         {/* MET VS PREDICTED DEMAND CHART (RF-24, RF-11, RF-13) */}
         <ThemedView type="backgroundElement" style={styles.chartContainer}>
@@ -835,5 +973,82 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#e91e63',
     marginLeft: Spacing.two,
+  },
+  configContainer: {
+    borderRadius: Spacing.three,
+    padding: Spacing.four,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(150,150,150,0.08)',
+  },
+  configHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  configBody: {
+    marginTop: Spacing.four,
+    gap: Spacing.three,
+  },
+  configRow: {
+    gap: Spacing.one,
+  },
+  configLabel: {
+    fontSize: 11,
+    opacity: 0.8,
+    marginBottom: 2,
+  },
+  configInput: {
+    height: 40,
+    borderWidth: 1,
+    borderRadius: Spacing.one,
+    paddingHorizontal: Spacing.two,
+    fontSize: 14,
+  },
+  configInputMultiline: {
+    height: 70,
+    textAlignVertical: 'top',
+    paddingTop: Spacing.one,
+  },
+  foodTypesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.one,
+  },
+  foodTypeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.two,
+    borderRadius: Spacing.one,
+    borderWidth: 1,
+  },
+  foodTypeChipSelected: {
+    backgroundColor: '#4caf5015',
+    borderColor: '#4caf50',
+  },
+  foodTypeLabel: {
+    fontSize: 10,
+  },
+  configSaveBtn: {
+    flexDirection: 'row',
+    height: 44,
+    borderRadius: Spacing.one,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: Spacing.one,
+    marginTop: Spacing.two,
+  },
+  configSaveBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  configSavedBanner: {
+    backgroundColor: '#4caf50',
+    padding: Spacing.two,
+    borderRadius: Spacing.one,
+    marginTop: Spacing.one,
   },
 });

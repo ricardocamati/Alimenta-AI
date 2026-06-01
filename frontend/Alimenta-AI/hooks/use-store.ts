@@ -67,6 +67,9 @@ export interface Ngo {
   userId: string;
   history: number[];
   predictedDemand: number;
+  pickupRadius?: number;
+  acceptedFoodTypes?: string[];
+  pickupSchedule?: string;
 }
 
 interface Weights {
@@ -249,8 +252,8 @@ let seedUsers: User[] = [
 ];
 
 let seedNgos: Ngo[] = [
-  { id: 'ngo_1', name: 'ONG Prato Cheio', cnpj: '11.222.333/0001-44', address: 'Rua da Consolação, 800', capacity: 250, userId: 'ngo_1', history: [180, 210, 195, 230], predictedDemand: 260 },
-  { id: 'ngo_2', name: 'ONG Mesa Brasil', cnpj: '44.555.666/0001-77', address: 'Av. Rebouças, 1200', capacity: 320, userId: 'ngo_2', history: [250, 270, 240, 290], predictedDemand: 320 },
+  { id: 'ngo_1', name: 'ONG Prato Cheio', cnpj: '11.222.333/0001-44', address: 'Rua da Consolação, 800', capacity: 250, userId: 'ngo_1', history: [180, 210, 195, 230], predictedDemand: 260, pickupRadius: 10, acceptedFoodTypes: ['Frutas', 'Verduras/Legumes', 'Carnes', 'Laticínios', 'Não-perecíveis'], pickupSchedule: 'Seg-Sex: 08h-12h / 14h-18h' },
+  { id: 'ngo_2', name: 'ONG Mesa Brasil', cnpj: '44.555.666/0001-77', address: 'Av. Rebouças, 1200', capacity: 320, userId: 'ngo_2', history: [250, 270, 240, 290], predictedDemand: 320, pickupRadius: 15, acceptedFoodTypes: ['Frutas', 'Verduras/Legumes', 'Carnes', 'Grãos/Cereais', 'Pães/Padaria', 'Não-perecíveis'], pickupSchedule: 'Seg-Sáb: 07h-11h / 13h-17h' },
 ];
 
 let state: StoreState = {
@@ -370,6 +373,11 @@ export function useStore() {
         address: data.address,
         capacity: data.capacity,
         userId: newId,
+        history: [0, 0, 0, 0],
+        predictedDemand: 0,
+        pickupRadius: 10,
+        acceptedFoodTypes: ['Frutas', 'Verduras/Legumes', 'Não-perecíveis'],
+        pickupSchedule: 'Seg-Sex: 08h-12h / 14h-18h',
       };
       state.users = [...state.users, newUser];
       state.ngos = [...state.ngos, newNgo];
@@ -588,6 +596,17 @@ export function useStore() {
 
     adjustWeights(newWeights: { urgency: number; demand: number; distance: number }) {
       state.weights = { ...newWeights };
+      emit();
+    },
+
+    updateNgoPreferences(ngoId: string, prefs: { capacity?: number; pickupRadius?: number; acceptedFoodTypes?: string[]; pickupSchedule?: string }) {
+      const ngo = state.ngos.find(n => n.id === ngoId);
+      if (!ngo) return;
+      if (prefs.capacity !== undefined) ngo.capacity = prefs.capacity;
+      if (prefs.pickupRadius !== undefined) ngo.pickupRadius = prefs.pickupRadius;
+      if (prefs.acceptedFoodTypes !== undefined) ngo.acceptedFoodTypes = prefs.acceptedFoodTypes;
+      if (prefs.pickupSchedule !== undefined) ngo.pickupSchedule = prefs.pickupSchedule;
+      state.ngos = [...state.ngos];
       emit();
     },
 
