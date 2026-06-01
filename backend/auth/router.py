@@ -14,17 +14,6 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
-def require_ong(
-    current_user: Usuario = Depends(get_current_user_with_ong),
-) -> Usuario:
-    if current_user.tipo != TipoUsuario.ong:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Apenas ONGs podem acessar este recurso",
-        )
-    return current_user
-
-
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(async_get_db),
@@ -75,6 +64,17 @@ async def get_current_user_with_ong(
             headers={"WWW-Authenticate": "Bearer"},
         )
     return usuario
+
+
+def require_ong(
+    current_user: Usuario = Depends(get_current_user_with_ong),
+) -> Usuario:
+    if current_user.tipo != TipoUsuario.ong:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Apenas ONGs podem acessar este recurso",
+        )
+    return current_user
 
 
 @router.post("/register", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)
