@@ -242,7 +242,7 @@ export default function DonorScreen() {
     try {
       await createDoacao({
         tipo_alimento: foodName,
-        categoria: category === 'Perecível' ? 'Perecível' : 'Não Perecível',
+        categoria: category === 'Perecível' ? 'perecivel_alto' : 'perecivel_baixo',
         quantidade: parseFloat(quantity) || 0,
         data_validade: expiryDate,
         foto_url: photoAsset.uri,

@@ -304,18 +304,15 @@ export default function PortalScreen() {
                 </Pressable>
               </View>
 
-              <ThemedText type="small" themeColor="textSecondary" style={styles.fieldHint}>
-                {'* Digite o nome do cadastro de teste para entrar automaticamente (ex: "Supermercado" ou "Prato Cheio").'}
-              </ThemedText>
-
-              {/* Email / Username Input */}
-              <ThemedText type="smallBold" style={styles.inputLabel}>Identificação (Nome / E-mail / CNPJ)</ThemedText>
+              {/* Email Input */}
+              <ThemedText type="smallBold" style={styles.inputLabel}>E-mail</ThemedText>
               <TextInput 
                 style={[styles.input, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-                placeholder={loginRole === 'admin' ? 'Identificação do Administrador' : 'Digite o nome ou CNPJ do seu estabelecimento'}
+                placeholder="seu@email.com"
                 placeholderTextColor={theme.textSecondary}
                 value={email}
                 onChangeText={setEmail}
+                keyboardType="email-address"
                 autoCapitalize="none"
               />
 
