@@ -36,6 +36,12 @@ const FOOD_PHOTOS = [
   { id: 'milk', name: 'Leite Longa Vida', emoji: '🥛', color: '#e0e0e0', url: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=120' },
   { id: 'vegetables', name: 'Cesta de Verduras', emoji: '🥬', color: '#81c784', url: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=120' },
   { id: 'meats', name: 'Carne Bovina', emoji: '🥩', color: '#e57373', url: 'https://images.unsplash.com/photo-1603048588665-791ca8aea617?w=120' },
+  { id: 'banana', name: 'Banana', emoji: '🍌', color: '#ffe135', url: 'https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=120' },
+  { id: 'rice', name: 'Arroz', emoji: '🍚', color: '#f5f5f5', url: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=120' },
+  { id: 'pasta', name: 'Macarrão', emoji: '🍝', color: '#ffab91', url: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?w=120' },
+  { id: 'fruit', name: 'Fruta', emoji: '🍎', color: '#ff5252', url: 'https://images.unsplash.com/photo-1619546813926-a78fa6372cd2?w=120' },
+  { id: 'grain', name: 'Grãos', emoji: '🌾', color: '#d7ccc8', url: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=120' },
+  { id: 'oil', name: 'Óleo', emoji: '🫒', color: '#c5e1a5', url: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=120' },
 ];
 
 export default function DonorScreen() {
@@ -273,20 +279,32 @@ export default function DonorScreen() {
 
   const getDonationPhoto = (donation: DoacaoDTO) => {
     const photoValue = donation.foto_url;
-    // Infer photo preset from food type / name
+    // Infer photo preset from food type / name using comprehensive keyword matching
     const tipo = (donation.tipo_alimento || '').toLowerCase();
     let photoId = 'vegetables'; // default fallback
-    if (tipo.includes('carne') || tipo.includes('frango') || tipo.includes('peixe')) {
+    if (tipo.includes('carne') || tipo.includes('frango') || tipo.includes('peixe') || tipo.includes('proteína') || tipo.includes('bovina') || tipo.includes('suína')) {
       photoId = 'meats';
-    } else if (tipo.includes('pão') || tipo.includes('padaria') || tipo.includes('bolo')) {
+    } else if (tipo.includes('banana') || tipo.includes('bananas')) {
+      photoId = 'banana';
+    } else if (tipo.includes('arroz') || tipo.includes('rice')) {
+      photoId = 'rice';
+    } else if (tipo.includes('macarrão') || tipo.includes('macarrao') || tipo.includes('pasta') || tipo.includes('espaguete') || tipo.includes('noodle')) {
+      photoId = 'pasta';
+    } else if (tipo.includes('pão') || tipo.includes('padaria') || tipo.includes('bolo') || tipo.includes('croissant')) {
       photoId = 'bread';
-    } else if (tipo.includes('leite') || tipo.includes('laticínio') || tipo.includes('queijo') || tipo.includes('iogurte')) {
+    } else if (tipo.includes('leite') || tipo.includes('laticínio') || tipo.includes('queijo') || tipo.includes('iogurte') || tipo.includes('manteiga')) {
       photoId = 'milk';
-    } else if (tipo.includes('tomate')) {
+    } else if (tipo.includes('tomate') || tipo.includes('tomates')) {
       photoId = 'tomatoes';
-    } else if (tipo.includes('laranja') || tipo.includes('cítrico')) {
+    } else if (tipo.includes('laranja') || tipo.includes('cítrico') || tipo.includes('limão') || tipo.includes('tangerina')) {
       photoId = 'oranges';
-    } else if (tipo.includes('verdura') || tipo.includes('legume') || tipo.includes('fruta') || tipo.includes('vegetal')) {
+    } else if (tipo.includes('óleo') || tipo.includes('azeite') || tipo.includes('óleo vegetal')) {
+      photoId = 'oil';
+    } else if (tipo.includes('grão') || tipo.includes('feijão') || tipo.includes('lentilha') || tipo.includes('ervilha') || tipo.includes('soja')) {
+      photoId = 'grain';
+    } else if (tipo.includes('fruta') || tipo.includes('maçã') || tipo.includes('pera') || tipo.includes('uva') || tipo.includes('morango') || tipo.includes('melancia')) {
+      photoId = 'fruit';
+    } else if (tipo.includes('verdura') || tipo.includes('legume') || tipo.includes('vegetal') || tipo.includes('alface') || tipo.includes('couve') || tipo.includes('cenoura') || tipo.includes('batata')) {
       photoId = 'vegetables';
     }
     const preset = FOOD_PHOTOS.find(p => p.id === photoId);
@@ -731,7 +749,8 @@ export default function DonorScreen() {
                         <View style={styles.matchedNgoRow}>
                           <SymbolView name="hands.sparkles.fill" size={12} tintColor="#ff9800" />
                           <ThemedText type="code" style={styles.matchedNgoText}>
-                            Score de matching: {donation.score_matching.toFixed(1)}
+                            Score: {Math.round(donation.score_matching)}/100
+                            {donation.distancia_km != null ? ` • ${donation.distancia_km.toFixed(1)} km` : ''}
                           </ThemedText>
                         </View>
                       )}
