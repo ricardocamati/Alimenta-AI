@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth.router import get_current_user
+from auth.router import get_current_user, get_current_user_with_ong, require_ong
 from database.connection import async_get_db, AsyncSessionLocal
 from database.models import TipoUsuario, Usuario
 from doacoes.schemas import DoacaoCreate, DoacaoDetailedResponse, DoacaoResponse
@@ -76,5 +76,46 @@ async def detalhe_doacao_endpoint(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Doacao nao encontrada",
+        )
+    return doacao
+
+
+from doacoes.service import listar_doacoes_por_ong, atualizar_status_doacao
+from doacoes.schemas import StatusUpdateRequest
+
+@router.get("/ongs/me/doacoes", response_model=list[DoacaoDetailedResponse])
+async def listar_doacoes_ong_endpoint(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    current_user: Usuario = Depends(require_ong),
+    db: AsyncSession = Depends(async_get_db),
+):
+    ong_id = current_user.ong.id if current_user.ong else None
+    if not ong_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Usuario nao possui ONG vinculada",
+        )
+    return await listar_doacoes_por_ong(db, ong_id, limit, offset)
+
+
+@router.patch("/{doacao_id}/status", response_model=DoacaoResponse)
+async def atualizar_status_endpoint(
+    doacao_id: int,
+    payload: StatusUpdateRequest,
+    current_user: Usuario = Depends(require_ong),
+    db: AsyncSession = Depends(async_get_db),
+):
+    doacao = await atualizar_status_doacao(
+        db,
+        doacao_id=doacao_id,
+        ong_id=current_user.ong.id if current_user.ong else None,
+        novo_status=payload.status,
+        observacao=payload.observacao,
+    )
+    if doacao is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Doacao nao encontrada ou nao vinculada a esta ONG",
         )
     return doacao

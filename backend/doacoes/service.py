@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from database.models import Doacao, LogAFD, StatusDoacao, Urgencia
+from database.models import Doacao, LogAFD, ONG, StatusDoacao, Urgencia
 from doacoes.schemas import DoacaoCreate
 from ml.predictor import UrgencyPredictor
 
@@ -104,3 +104,60 @@ async def buscar_doacao_por_id(
         .where(Doacao.id == doacao_id, Doacao.doador_id == doador_id)
     )
     return result.scalar_one_or_none()
+
+
+async def listar_doacoes_por_ong(
+    db: AsyncSession, ong_id: int, limit: int, offset: int
+) -> list[Doacao]:
+    result = await db.execute(
+        select(Doacao)
+        .options(selectinload(Doacao.logs))
+        .where(
+            Doacao.ong_matched_id == ong_id,
+            Doacao.status.in_([
+                StatusDoacao.matched,
+                StatusDoacao.notificado,
+                StatusDoacao.coletado,
+                StatusDoacao.confirmado,
+            ])
+        )
+        .order_by(Doacao.score_matching.desc().nulls_last())
+        .offset(offset)
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def atualizar_status_doacao(
+    db: AsyncSession,
+    doacao_id: int,
+    ong_id: int | None,
+    novo_status: str,
+    observacao: str | None,
+) -> Doacao | None:
+    doacao = await db.scalar(
+        select(Doacao).where(
+            Doacao.id == doacao_id,
+            Doacao.ong_matched_id == ong_id,
+        )
+    )
+    if doacao is None:
+        return None
+
+    estado_anterior = doacao.status.value
+    try:
+        status_enum = StatusDoacao(novo_status)
+    except ValueError:
+        return None
+
+    doacao.status = status_enum
+    log = LogAFD(
+        doacao_id=doacao.id,
+        estado_anterior=estado_anterior,
+        estado_novo=novo_status,
+        descricao=observacao or f"Status atualizado para {novo_status} via API",
+    )
+    db.add(log)
+    await db.commit()
+    await db.refresh(doacao)
+    return doacao

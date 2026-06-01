@@ -8,10 +8,21 @@ from auth.schemas import LoginRequest, TokenResponse, UsuarioCreate, UsuarioResp
 from auth.service import authenticate, register
 from auth.utils import create_access_token, decode_access_token
 from database.connection import async_get_db, get_db
-from database.models import ONG, Usuario
+from database.models import ONG, TipoUsuario, Usuario
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+
+def require_ong(
+    current_user: Usuario = Depends(get_current_user_with_ong),
+) -> Usuario:
+    if current_user.tipo != TipoUsuario.ong:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Apenas ONGs podem acessar este recurso",
+        )
+    return current_user
 
 
 async def get_current_user(

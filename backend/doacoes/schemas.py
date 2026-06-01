@@ -46,6 +46,11 @@ class LogAFDResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class StatusUpdateRequest(BaseModel):
+    status: str
+    observacao: str | None = None
+
+
 class DoacaoResponse(BaseModel):
     id: int
     doador_id: int
