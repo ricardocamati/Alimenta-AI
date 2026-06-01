@@ -1,11 +1,36 @@
-import { Platform, useColorScheme, View, StyleSheet, Pressable } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Redirect } from 'expo-router';
+import { Platform, View, ActivityIndicator, useColorScheme, StyleSheet, Pressable } from 'react-native';
 import { Tabs, TabList, TabTrigger, TabSlot, TabTriggerSlotProps, TabListProps } from 'expo-router/ui';
 
-import { ThemedText } from './themed-text';
-import { ThemedView } from './themed-view';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { authStore } from '@/store/authStore';
 import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
 
-export default function AppTabs() {
+export default function AppLayout() {
+  const [authState, setAuthState] = useState(authStore.getState());
+  const [mounted, setMounted] = useState(false);
+  const colorScheme = useColorScheme();
+
+  useEffect(() => {
+    setMounted(true);
+    const unsub = authStore.subscribe((s) => setAuthState(s));
+    return unsub;
+  }, []);
+
+  if (!mounted || authState.isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colorScheme === 'dark' ? '#151718' : '#fff' }}>
+        <ActivityIndicator size="large" color="#3c87f7" />
+      </View>
+    );
+  }
+
+  if (!authState.user) {
+    return <Redirect href="/login" />;
+  }
+
   if (Platform.OS !== 'web') {
     return <NativeAppTabs />;
   }
@@ -22,13 +47,6 @@ function NativeAppTabs() {
       backgroundColor={colors.background}
       indicatorColor={colors.backgroundElement}
       labelStyle={{ selected: { color: colors.text } }}>
-      <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>Portal</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={require('@/assets/images/tabIcons/home.png')}
-          renderingMode="template"
-        />
-      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="donor">
         <NativeTabs.Trigger.Label>Doador</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
@@ -67,9 +85,6 @@ function WebAppTabs() {
       <TabSlot style={{ height: '100%' }} />
       <TabList asChild>
         <CustomTabList>
-          <TabTrigger name="index" href="/" asChild>
-            <TabButton>Portal</TabButton>
-          </TabTrigger>
           <TabTrigger name="donor" href="/donor" asChild>
             <TabButton>Doador</TabButton>
           </TabTrigger>
@@ -111,7 +126,6 @@ function CustomTabList(props: TabListProps) {
         <ThemedText type="smallBold" style={styles.brandText}>
           AlimentAÇÃO Preditiva
         </ThemedText>
-
         {props.children}
       </ThemedView>
     </View>
@@ -147,12 +161,5 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.one,
     paddingHorizontal: Spacing.three,
     borderRadius: Spacing.three,
-  },
-  externalPressable: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: Spacing.one,
-    marginLeft: Spacing.three,
   },
 });

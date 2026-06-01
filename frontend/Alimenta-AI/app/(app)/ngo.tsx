@@ -168,11 +168,6 @@ export default function NgoScreen() {
               Conectado: <ThemedText type="smallBold">{activeNgoName}</ThemedText>
             </ThemedText>
           </View>
-          {!isNgoLoggedIn && (
-            <Pressable style={styles.loginHintBtn} onPress={() => router.replace('/')}>
-              <ThemedText type="code" style={{ color: '#ffffff', fontSize: 11 }}>Fazer Login</ThemedText>
-            </Pressable>
-          )}
         </ThemedView>
 
         {/* Dashboard Metrics (RF-23) */}

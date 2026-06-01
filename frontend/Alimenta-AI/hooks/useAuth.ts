@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Alert } from 'react-native';
-import { router } from 'expo-router';
 
 import { authStore } from '@/store/authStore';
 import * as authService from '@/services/authService';
@@ -44,10 +43,7 @@ export function useAuth() {
       authStore.setUser(me);
       setUser(me);
       Alert.alert('Login realizado', `Bem-vindo(a), ${me.nome}!`);
-
-      if (me.tipo === 'admin') router.replace('/admin');
-      else if (me.tipo === 'doador') router.replace('/donor');
-      else router.replace('/ngo');
+      return me;
     } catch (err) {
       const msg = handleApiError(err);
       setError(msg);
@@ -68,9 +64,7 @@ export function useAuth() {
       const me = await authService.getMe();
       authStore.setUser(me);
       setUser(me);
-
-      if (me.tipo === 'doador') router.replace('/donor');
-      else router.replace('/ngo');
+      return me;
     } catch (err) {
       const msg = handleApiError(err);
       setError(msg);
@@ -83,7 +77,6 @@ export function useAuth() {
   const logout = useCallback(async () => {
     await authService.logout();
     setUser(null);
-    router.replace('/');
   }, []);
 
   return { user, isLoading, error, login, register, logout, setError };

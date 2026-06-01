@@ -312,11 +312,6 @@ export default function DonorScreen() {
               Conectado: <ThemedText type="smallBold">{activeDonorName}</ThemedText>
             </ThemedText>
           </View>
-          {!isDonorLoggedIn && (
-            <Pressable style={styles.loginHintBtn} onPress={() => router.replace('/')}>
-              <ThemedText type="code" style={{ color: '#ffffff', fontSize: 11 }}>Fazer Login</ThemedText>
-            </Pressable>
-          )}
         </ThemedView>
 
         {/* Dashboard Metrics (RF-23, RF-25) */}

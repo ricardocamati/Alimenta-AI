@@ -101,11 +101,6 @@ export default function AdminScreen() {
               Visão consolidada do Motor de Machine Learning e Auditoria
             </ThemedText>
           </View>
-          {!isAdmin && (
-            <Pressable style={styles.loginHintBtn} onPress={() => router.replace('/')}>
-              <ThemedText type="code" style={{ color: '#ffffff', fontSize: 11 }}>Fazer Login Admin</ThemedText>
-            </Pressable>
-          )}
         </ThemedView>
 
         {/* SECTION 1: WEIGHTS CONFIGURATION (RF-16) */}
