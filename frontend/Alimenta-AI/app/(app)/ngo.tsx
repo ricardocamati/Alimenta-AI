@@ -381,32 +381,49 @@ export default function NgoScreen() {
                           />
 
                           <View style={styles.actionBtnGrid}>
-                            <Pressable 
-                              style={[styles.actionBtn, { backgroundColor: '#ff9800' }]}
-                              onPress={() => handleUpdateState('Coletado')}
-                              disabled={loading}
-                            >
-                              <SymbolView name={{ ios: 'shippingbox.fill', android: 'local_shipping', web: 'local_shipping' } as any} size={16} tintColor="#ffffff" />
-                              <ThemedText type="code" style={styles.actionBtnText}>Marcar Coletado</ThemedText>
-                            </Pressable>
+                            {donation.status === 'Matched' && (
+                              <Pressable 
+                                style={[styles.actionBtn, { backgroundColor: '#2196f3' }]}
+                                onPress={() => handleUpdateState('Notificado')}
+                                disabled={loading}
+                              >
+                                <SymbolView name="lock.shield" size={16} tintColor="#ffffff" />
+                                <ThemedText type="code" style={styles.actionBtnText}>Reservar Doação</ThemedText>
+                              </Pressable>
+                            )}
                             
-                            <Pressable 
-                              style={[styles.actionBtn, { backgroundColor: '#4caf50' }]}
-                              onPress={() => handleUpdateState('Confirmado')}
-                              disabled={loading}
-                            >
-                              <SymbolView name="checkmark.seal" size={16} tintColor="#ffffff" />
-                              <ThemedText type="code" style={styles.actionBtnText}>Confirmar Recebido</ThemedText>
-                            </Pressable>
+                            {donation.status === 'Notificado' && (
+                              <Pressable 
+                                style={[styles.actionBtn, { backgroundColor: '#ff9800' }]}
+                                onPress={() => handleUpdateState('Coletado')}
+                                disabled={loading}
+                              >
+                                <SymbolView name={{ ios: 'shippingbox.fill', android: 'local_shipping', web: 'local_shipping' } as any} size={16} tintColor="#ffffff" />
+                                <ThemedText type="code" style={styles.actionBtnText}>Marcar Coletado</ThemedText>
+                              </Pressable>
+                            )}
+                            
+                            {donation.status === 'Coletado' && (
+                              <Pressable 
+                                style={[styles.actionBtn, { backgroundColor: '#4caf50' }]}
+                                onPress={() => handleUpdateState('Confirmado')}
+                                disabled={loading}
+                              >
+                                <SymbolView name="checkmark.seal" size={16} tintColor="#ffffff" />
+                                <ThemedText type="code" style={styles.actionBtnText}>Confirmar Recebido</ThemedText>
+                              </Pressable>
+                            )}
 
-                            <Pressable 
-                              style={[styles.actionBtn, { backgroundColor: '#f44336' }]}
-                              onPress={() => handleUpdateState('Cancelado')}
-                              disabled={loading}
-                            >
-                              <SymbolView name="xmark.octagon" size={16} tintColor="#ffffff" />
-                              <ThemedText type="code" style={styles.actionBtnText}>Cancelar Doação</ThemedText>
-                            </Pressable>
+                            {!['Confirmado', 'Cancelado'].includes(donation.status) && (
+                              <Pressable 
+                                style={[styles.actionBtn, { backgroundColor: '#f44336' }]}
+                                onPress={() => handleUpdateState('Cancelado')}
+                                disabled={loading}
+                              >
+                                <SymbolView name="xmark.octagon" size={16} tintColor="#ffffff" />
+                                <ThemedText type="code" style={styles.actionBtnText}>Cancelar Doação</ThemedText>
+                              </Pressable>
+                            )}
                           </View>
                           
                           {loading && (

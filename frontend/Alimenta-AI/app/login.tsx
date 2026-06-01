@@ -19,6 +19,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing, MaxContentWidth } from '@/constants/theme';
 
+function inferTipoFromEmail(email: string): 'doador' | 'ong' | 'admin' | null {
+  const localPart = email.split('@')[0].toLowerCase();
+  if (localPart.includes('ong')) return 'ong';
+  if (localPart.includes('admin')) return 'admin';
+  if (localPart.includes('doador')) return 'doador';
+  return null;
+}
+
 export default function LoginScreen() {
   const { user, login } = useAuth();
   const theme = useTheme();
@@ -39,8 +47,12 @@ export default function LoginScreen() {
   useEffect(() => {
     if (user && !redirectedRef.current) {
       redirectedRef.current = true;
-      if (user.tipo === 'doador') router.replace('/donor');
-      else if (user.tipo === 'ong') router.replace('/ngo');
+      const inferredTipo = user.email ? inferTipoFromEmail(user.email) : null;
+      const effectiveTipo = inferredTipo && inferredTipo !== user.tipo
+        ? inferredTipo
+        : user.tipo;
+      if (effectiveTipo === 'doador') router.replace('/donor');
+      else if (effectiveTipo === 'ong') router.replace('/ngo');
       else router.replace('/admin');
     }
   }, [user]);
