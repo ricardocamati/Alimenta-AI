@@ -111,7 +111,7 @@ async def listar_doacoes_por_ong(
 ) -> list[Doacao]:
     result = await db.execute(
         select(Doacao)
-        .options(selectinload(Doacao.logs))
+        .options(selectinload(Doacao.logs), selectinload(Doacao.doador))
         .where(
             Doacao.ong_matched_id == ong_id,
             Doacao.status.in_([

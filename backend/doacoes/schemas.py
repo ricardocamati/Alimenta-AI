@@ -54,6 +54,7 @@ class StatusUpdateRequest(BaseModel):
 class DoacaoResponse(BaseModel):
     id: int
     doador_id: int
+    doador_nome: str | None = None
     tipo_alimento: str
     categoria: str
     quantidade: float

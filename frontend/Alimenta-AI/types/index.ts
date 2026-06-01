@@ -61,6 +61,7 @@ export interface CreateDoacaoDTO {
 export interface DoacaoDTO {
   id: number;
   doador_id: number;
+  doador_nome: string | null;
   tipo_alimento: string;
   categoria: string;
   quantidade: number;

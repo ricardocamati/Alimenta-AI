@@ -116,6 +116,10 @@ class Doacao(Base):
     logs: Mapped[list["LogAFD"]] = relationship(
         "LogAFD", back_populates="doacao", cascade="all, delete-orphan"
     )
+
+    @property
+    def doador_nome(self) -> str | None:
+        return self.doador.nome if self.doador else None
     scores: Mapped[list["ScoreMatching"]] = relationship(
         "ScoreMatching", back_populates="doacao", cascade="all, delete-orphan"
     )

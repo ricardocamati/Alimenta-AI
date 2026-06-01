@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   StyleSheet, 
   Pressable, 
@@ -6,185 +6,89 @@ import {
   View, 
   ActivityIndicator,
   TextInput,
-  Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
-import { router } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/hooks/useAuth';
 import { useDashboard } from '@/hooks/useDashboard';
-import { useStore, Donation, DonationStatus } from '@/hooks/use-store';
+import { useDoacoesOng } from '@/hooks/useDoacoesOng';
 import { ErrorMessage } from '@/components/ErrorMessage';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing, MaxContentWidth, BottomTabInset } from '@/constants/theme';
+import type { DoacaoDTO } from '@/types';
 
-const FOOD_PHOTOS = [
-  { id: 'tomatoes', name: 'Tomates', emoji: '🍅', color: '#ff5252' },
-  { id: 'bread', name: 'Pão Caseiro', emoji: '🍞', color: '#ffa726' },
-  { id: 'oranges', name: 'Laranjas', emoji: '🍊', color: '#ffb74d' },
-  { id: 'milk', name: 'Leite Longa Vida', emoji: '🥛', color: '#e0e0e0' },
-  { id: 'vegetables', name: 'Cesta de Verduras', emoji: '🥬', color: '#81c784' },
-  { id: 'meats', name: 'Carne Bovina', emoji: '🥩', color: '#e57373' },
-];
+const FOOD_PHOTOS: Record<string, { name: string; emoji: string; color: string }> = {
+  tomatoes: { name: 'Tomates', emoji: '🍅', color: '#ff5252' },
+  bread: { name: 'Pão Caseiro', emoji: '🍞', color: '#ffa726' },
+  oranges: { name: 'Laranjas', emoji: '🍊', color: '#ffb74d' },
+  milk: { name: 'Leite Longa Vida', emoji: '🥛', color: '#e0e0e0' },
+  vegetables: { name: 'Cesta de Verduras', emoji: '🥬', color: '#81c784' },
+  meats: { name: 'Carne Bovina', emoji: '🥩', color: '#e57373' },
+  banana: { name: 'Banana', emoji: '🍌', color: '#ffe135' },
+  rice: { name: 'Arroz', emoji: '🍚', color: '#e0e0e0' },
+  pasta: { name: 'Macarrão', emoji: '🍝', color: '#ffab91' },
+  generic: { name: 'Alimento', emoji: '🍽️', color: '#9e9e9e' },
+};
 
-function getDonationPhoto(donation: Donation) {
-  const photoValue = donation.photoUrl || donation.photoId;
-  const preset = FOOD_PHOTOS.find(p => p.id === photoValue);
-
-  return {
-    preset: preset || FOOD_PHOTOS[4],
-    uri: preset ? null : photoValue,
-  };
+function getDonationPhoto(tipoAlimento: string) {
+  const lower = tipoAlimento.toLowerCase();
+  if (lower.includes('tomate')) return FOOD_PHOTOS.tomatoes;
+  if (lower.includes('pão')) return FOOD_PHOTOS.bread;
+  if (lower.includes('laranja')) return FOOD_PHOTOS.oranges;
+  if (lower.includes('leite')) return FOOD_PHOTOS.milk;
+  if (lower.includes('verdura') || lower.includes('legume')) return FOOD_PHOTOS.vegetables;
+  if (lower.includes('carne') || lower.includes('bovina')) return FOOD_PHOTOS.meats;
+  if (lower.includes('banana')) return FOOD_PHOTOS.banana;
+  if (lower.includes('arroz') || lower.includes('grão')) return FOOD_PHOTOS.rice;
+  if (lower.includes('macarrão') || lower.includes('pasta')) return FOOD_PHOTOS.pasta;
+  return FOOD_PHOTOS.generic;
 }
 
-const LIFECYCLE_STATES: DonationStatus[] = [
-  'Cadastrado',
-  'Analisado',
-  'Matched',
-  'Notificado',
-  'Coletado',
-  'Confirmado'
-];
+const STATUS_LABELS: Record<string, string> = {
+  cadastrado: 'Cadastrado',
+  analisado: 'Analisado',
+  matched: 'Matched',
+  notificado: 'Notificado',
+  coletado: 'Coletado',
+  confirmado: 'Confirmado',
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  cadastrado: '#2196f3',
+  analisado: '#9c27b0',
+  matched: '#ff9800',
+  notificado: '#e91e63',
+  coletado: '#4caf50',
+  confirmado: '#2e7d32',
+};
 
 export default function NgoScreen() {
   const { user } = useAuth();
-  const { data: dashData, isLoading: loadingDash, error: dashError, refresh: refreshDash } = useDashboard();
-  const store = useStore();
+  const { data: dashData, isLoading: loadingDash, error: dashError } = useDashboard();
+  const { doacoes, isLoading, error, refresh, atualizarStatus } = useDoacoesOng();
   const theme = useTheme();
 
-  const isNgoLoggedIn = !!(user && user.tipo === 'ong');
-  const activeNgoId = isNgoLoggedIn ? String(user!.id) : 'ngo_1';
-  const activeNgoName = isNgoLoggedIn ? user!.nome : 'ONG Prato Cheio';
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [notes, setNotes] = useState('');
+  const [loadingAction, setLoadingAction] = useState(false);
+  const [msg, setMsg] = useState('');
 
   const dash = dashData && 'perfil' in dashData && dashData.perfil === 'ong' ? dashData : null;
 
-  const currentNgo = store.ngos.find(n => n.id === activeNgoId) || store.ngos[0];
-
-  // Selected donation for state transition manager
-  const [selectedDonationId, setSelectedDonationId] = useState<string | null>(null);
-  const [transitionNotes, setTransitionNotes] = useState('');
-  
-  // Feedback states
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
-
-  // Recebimento preferences state
-  const [configExpanded, setConfigExpanded] = useState(false);
-  const [editCapacity, setEditCapacity] = useState(String(currentNgo.capacity || 250));
-  const [editRadius, setEditRadius] = useState(String(currentNgo.pickupRadius || 10));
-  const [editFoodTypes, setEditFoodTypes] = useState<string[]>([...(currentNgo.acceptedFoodTypes || [])]);
-  const [editSchedule, setEditSchedule] = useState(currentNgo.pickupSchedule || '');
-  const [configSaved, setConfigSaved] = useState(false);
-
-  const FOOD_TYPE_OPTIONS = ['Frutas', 'Verduras/Legumes', 'Carnes', 'Laticínios', 'Grãos/Cereais', 'Pães/Padaria', 'Não-perecíveis'];
-
-  // Filter donations and notifications for this specific NGO
-  // Display only matched donations
-  const matchedDonations = store.donations.filter(d => d.matchedNgoId === activeNgoId);
-  const ngoNotifications = store.notifications.filter(n => n.userId === activeNgoId);
-
-  // Active selected donation object
-  const selectedDonation = store.donations.find(d => d.id === selectedDonationId);
-
-  // Stats calculation
-  const totalReceivedWeight = matchedDonations
-    .filter(d => d.status === 'Confirmado')
-    .reduce((acc, d) => acc + (parseFloat(d.quantity) || 0), 0);
-
-  const pendingCollectionsCount = matchedDonations
-    .filter(d => ['Matched', 'Notificado', 'Coletado'].includes(d.status))
-    .length;
-
-  useEffect(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const nearExpiryCount = matchedDonations.filter(d => {
-      const expiry = new Date(d.expiryDate);
-      const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      return diffDays <= 3 && !['Confirmado', 'Cancelado'].includes(d.status);
-    }).length;
-
-    if (nearExpiryCount > 0) {
-      store.triggerExpiryAlerts();
-    }
-  }, []);
-
-  const handleUpdateState = (nextState: DonationStatus) => {
-    if (!selectedDonationId) return;
-    setErrorMsg('');
-    setSuccessMsg('');
-    setLoading(true);
-
-    setTimeout(() => {
-      try {
-        // updateDonationState accepts up to 3 arguments; pass only the expected ones
-        store.updateDonationState(
-          selectedDonationId,
-          nextState,
-          activeNgoName
-        );
-        setSuccessMsg(`Status atualizado para "${nextState}" com sucesso!`);
-        setTransitionNotes('');
-        setLoading(false);
-        // Clear message
-        setTimeout(() => setSuccessMsg(''), 3000);
-      } catch (err: any) {
-        setLoading(false);
-        setErrorMsg(err.message || 'Falha ao atualizar estado.');
-      }
-    }, 1000);
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Cadastrado': return '#2196f3';
-      case 'Analisado': return '#9c27b0';
-      case 'Matched': return '#ff9800';
-      case 'Notificado': return '#e91e63';
-      case 'Coletado': return '#4caf50';
-      case 'Confirmado': return '#2e7d32';
-      case 'Cancelado': return '#f44336';
-      default: return '#757575';
+  const handleAction = async (doacao: DoacaoDTO, novoStatus: string) => {
+    setLoadingAction(true);
+    setMsg('');
+    const result = await atualizarStatus(doacao.id, novoStatus, notes || undefined);
+    setLoadingAction(false);
+    if (result) {
+      setMsg(`Status atualizado para "${STATUS_LABELS[novoStatus]}" com sucesso!`);
+      setNotes('');
+      setTimeout(() => setMsg(''), 3000);
     }
   };
-
-  const handleSavePreferences = () => {
-    const cap = parseInt(editCapacity, 10);
-    const rad = parseFloat(editRadius);
-    if (isNaN(cap) || cap <= 0) return;
-    if (isNaN(rad) || rad <= 0) return;
-    store.updateNgoPreferences(activeNgoId, {
-      capacity: cap,
-      pickupRadius: rad,
-      acceptedFoodTypes: editFoodTypes,
-      pickupSchedule: editSchedule,
-    });
-    setConfigSaved(true);
-    setTimeout(() => setConfigSaved(false), 3000);
-  };
-
-  const toggleFoodType = (type: string) => {
-    if (editFoodTypes.includes(type)) {
-      setEditFoodTypes(editFoodTypes.filter(t => t !== type));
-    } else {
-      setEditFoodTypes([...editFoodTypes, type]);
-    }
-  };
-
-  // Met vs Predicted Demand Report simulation data (RF-24)
-  // We compare history weekly attendance against capacity and forecasted demand
-  const weeklyLabels = ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4', 'Semana 5 (Prevista)'];
-  const actualHistory = [...currentNgo.history];
-  const predictedValue = currentNgo.predictedDemand;
-  
-  // Combine into a single array for visualization
-  const graphValues = [...actualHistory, predictedValue];
-  const maxGraphVal = Math.max(...graphValues, currentNgo.capacity) * 1.1;
 
   return (
     <ScrollView 
@@ -193,422 +97,182 @@ export default function NgoScreen() {
     >
       <SafeAreaView style={styles.safeArea}>
         
-        {/* Welcome Header */}
         <ThemedView style={styles.header}>
           <View>
             <ThemedText type="subtitle">Portal da ONG</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              Conectado: <ThemedText type="smallBold">{activeNgoName}</ThemedText>
+              {user?.nome || 'ONG'}
             </ThemedText>
           </View>
         </ThemedView>
 
-        {/* Dashboard Metrics (RF-23) */}
-        <View style={styles.kpiContainer}>
-          <ThemedView type="backgroundElement" style={styles.kpiCard}>
-            <SymbolView name="cart.badge.plus" size={24} tintColor="#4caf50" />
-            <ThemedText type="subtitle" style={styles.kpiValue}>{totalReceivedWeight} kg</ThemedText>
-            <ThemedText type="code" style={styles.kpiLabel}>Total Confirmado</ThemedText>
-          </ThemedView>
-
-          <ThemedView type="backgroundElement" style={styles.kpiCard}>
-            <SymbolView name="bell.badge" size={24} tintColor="#e91e63" />
-            <ThemedText type="subtitle" style={styles.kpiValue}>{pendingCollectionsCount}</ThemedText>
-            <ThemedText type="code" style={styles.kpiLabel}>Agendados p/ Coleta</ThemedText>
-          </ThemedView>
-
-          <ThemedView type="backgroundElement" style={styles.kpiCard}>
-            <SymbolView name="person.3.fill" size={24} tintColor="#2196f3" />
-            <ThemedText type="subtitle" style={styles.kpiValue}>{currentNgo.capacity}</ThemedText>
-            <ThemedText type="code" style={styles.kpiLabel}>Capacidade Semanal</ThemedText>
-          </ThemedView>
+        {/* Stats */}
+        <View style={styles.statsRow}>
+          <View style={[styles.statCard, { backgroundColor: theme.backgroundSelected }]}>
+            <ThemedText type="subtitle">{dash?.total_doacoes_recebidas ?? 0}</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">Recebidas</ThemedText>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: theme.backgroundSelected }]}>
+            <ThemedText type="subtitle">{dash?.doacoes_pendentes ?? 0}</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">Pendentes</ThemedText>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: theme.backgroundSelected }]}>
+            <ThemedText type="subtitle">{dash?.demanda_prevista_proxima_semana?.toFixed(0) ?? 0}</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">Demanda (Semana)</ThemedText>
+          </View>
         </View>
-        
-        {/* CONFIGURAÇÃO DE RECEBIMENTO */}
-        <ThemedView type="backgroundElement" style={styles.configContainer}>
-          <Pressable 
-            style={styles.configHeader}
-            onPress={() => setConfigExpanded(!configExpanded)}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.one }}>
-              <SymbolView name="gearshape" size={20} tintColor="#ff9800" />
-              <ThemedText type="smallBold">Configuração de Recebimento</ThemedText>
-            </View>
-            <SymbolView 
-              name={configExpanded ? 'chevron.up' : 'chevron.down'} 
-              size={16} 
-              tintColor={theme.textSecondary} 
-            />
-          </Pressable>
 
-          {configExpanded && (
-            <View style={styles.configBody}>
-              {/* Capacity */}
-              <View style={styles.configRow}>
-                <ThemedText type="code" style={styles.configLabel}>Capacidade Semanal (kg)</ThemedText>
-                <TextInput 
-                  style={[styles.configInput, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-                  keyboardType="numeric"
-                  value={editCapacity}
-                  onChangeText={setEditCapacity}
-                  placeholderTextColor={theme.textSecondary}
-                />
-              </View>
-
-              {/* Pickup radius */}
-              <View style={styles.configRow}>
-                <ThemedText type="code" style={styles.configLabel}>Raio de Coleta (km)</ThemedText>
-                <TextInput 
-                  style={[styles.configInput, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-                  keyboardType="numeric"
-                  value={editRadius}
-                  onChangeText={setEditRadius}
-                  placeholderTextColor={theme.textSecondary}
-                />
-              </View>
-
-              {/* Accepted food types */}
-              <View style={styles.configRow}>
-                <ThemedText type="code" style={styles.configLabel}>Tipos de Alimento Aceitos</ThemedText>
-                <View style={styles.foodTypesGrid}>
-                  {FOOD_TYPE_OPTIONS.map(type => {
-                    const selected = editFoodTypes.includes(type);
-                    return (
-                      <Pressable
-                        key={type}
-                        onPress={() => toggleFoodType(type)}
-                        style={[
-                          styles.foodTypeChip,
-                          selected && styles.foodTypeChipSelected,
-                          { borderColor: theme.backgroundSelected }
-                        ]}
-                      >
-                        <SymbolView 
-                          name={selected ? 'checkmark.circle.fill' : 'circle'} 
-                          size={14} 
-                          tintColor={selected ? '#4caf50' : theme.textSecondary} 
-                        />
-                        <ThemedText type="code" style={[styles.foodTypeLabel, selected && { color: '#4caf50', fontWeight: 'bold' }]}>
-                          {type}
-                        </ThemedText>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* Pickup schedule */}
-              <View style={styles.configRow}>
-                <ThemedText type="code" style={styles.configLabel}>Horários de Coleta</ThemedText>
-                <TextInput 
-                  style={[styles.configInput, styles.configInputMultiline, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-                  multiline
-                  numberOfLines={3}
-                  value={editSchedule}
-                  onChangeText={setEditSchedule}
-                  placeholder="Ex: Seg-Sex: 08h-12h / 14h-18h"
-                  placeholderTextColor={theme.textSecondary}
-                />
-              </View>
-
-              {/* Save button */}
-              <Pressable 
-                style={[styles.configSaveBtn, { backgroundColor: '#ff9800' }]}
-                onPress={handleSavePreferences}
-              >
-                <SymbolView name="checkmark.circle" size={16} tintColor="#ffffff" />
-                <ThemedText type="code" style={styles.configSaveBtnText}>Salvar Preferências</ThemedText>
-              </Pressable>
-
-              {configSaved && (
-                <View style={styles.configSavedBanner}>
-                  <ThemedText type="small" style={{ color: '#ffffff' }}>Preferências salvas com sucesso!</ThemedText>
-                </View>
-              )}
-            </View>
-          )}
-        </ThemedView>
-
-        {/* MET VS PREDICTED DEMAND CHART (RF-24, RF-11, RF-13) */}
-        <ThemedView type="backgroundElement" style={styles.chartContainer}>
-          <View style={styles.chartHeader}>
-            <SymbolView name="chart.bar.xaxis" size={20} tintColor="#2196f3" />
-            <View style={{ marginLeft: Spacing.one }}>
-              <ThemedText type="smallBold">Relatório Periódico: Demanda vs Prevista</ThemedText>
-              <ThemedText type="code" style={{ fontSize: 9, opacity: 0.7 }}>
-                Motor statsforecast (AutoETS / AutoARIMA) • Atualizado quinzenalmente
-              </ThemedText>
-            </View>
-          </View>
-
-          {/* Custom SVG/HTML Chart in React Native */}
-          <View style={styles.chartBody}>
-            <View style={styles.chartYAxis}>
-              <ThemedText type="code" style={styles.yAxisLabel}>{Math.round(maxGraphVal)}</ThemedText>
-              <ThemedText type="code" style={styles.yAxisLabel}>{Math.round(maxGraphVal * 0.66)}</ThemedText>
-              <ThemedText type="code" style={styles.yAxisLabel}>{Math.round(maxGraphVal * 0.33)}</ThemedText>
-              <ThemedText type="code" style={styles.yAxisLabel}>0</ThemedText>
-            </View>
-
-            <View style={styles.chartBarsArea}>
-              {graphValues.map((val, idx) => {
-                const isPrediction = idx === graphValues.length - 1;
-                const barHeightPct = (val / maxGraphVal) * 100;
-                return (
-                  <View key={idx} style={styles.chartBarCol}>
-                    <View style={styles.barOuter}>
-                      <View 
-                        style={[
-                          styles.barInner, 
-                          { height: `${barHeightPct}%` },
-                          isPrediction ? styles.barPrediction : styles.barActual
-                        ]} 
-                      />
-                      <ThemedText type="code" style={styles.barValueLabel}>{val}</ThemedText>
-                    </View>
-                    <ThemedText type="code" style={styles.barLabel}>{weeklyLabels[idx]}</ThemedText>
-                  </View>
-                );
-              })}
-            </View>
-          </View>
-
-          <View style={styles.chartLegend}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendBox, { backgroundColor: '#3c87f7' }]} />
-              <ThemedText type="code" style={{ fontSize: 10 }}>Atendimento Histórico Real</ThemedText>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendBox, { backgroundColor: '#9c27b0' }]} />
-              <ThemedText type="code" style={{ fontSize: 10 }}>Demanda Prevista (ML)</ThemedText>
-            </View>
-          </View>
-        </ThemedView>
-
-        {/* SUGGESTED MATCHING LIST (RF-17, RF-18) */}
-        <ThemedView type="backgroundElement" style={styles.listContainer}>
-          <ThemedText type="smallBold" style={styles.listTitle}>Doações Direcionadas (Matching Inteligente)</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary" style={styles.listDesc}>
-            Lista ordenada automaticamente por prioridade calculada em tempo real (Distância + Perecibilidade + Escassez).
-          </ThemedText>
-
-          {matchedDonations.length === 0 ? (
-            <ThemedText type="small" themeColor="textSecondary" style={styles.emptyListText}>
-              Nenhuma doação compatível com seu perfil no momento.
+        {/* ALERT */}
+        {dash?.alerta_escassez && (
+          <View style={[styles.alertBanner, { backgroundColor: '#e91e6322' }]}>
+            <SymbolView name="exclamationmark.triangle" size={16} tintColor="#e91e63" />
+            <ThemedText type="small" style={{ color: '#e91e63', marginLeft: 8 }}>
+              Alerta de escassez detectado! Demanda prevista acima da capacidade.
             </ThemedText>
-          ) : (
-            <View style={styles.matchedList}>
-              {matchedDonations
-                .slice()
-                // Sort by match score descending
-                .sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0))
-                .map(donation => {
-                  const photo = getDonationPhoto(donation);
-                  const isSelected = selectedDonationId === donation.id;
-                  
-                  return (
-                    <Pressable 
-                      key={donation.id}
-                      onPress={() => {
-                        setSelectedDonationId(isSelected ? null : donation.id);
-                        setErrorMsg('');
-                        setSuccessMsg('');
-                      }}
-                      style={[
-                        styles.matchCard, 
-                        isSelected && { borderColor: '#ff9800', borderWidth: 2 },
-                        { backgroundColor: theme.backgroundSelected }
-                      ]}
-                    >
-                      <View style={styles.matchCardRow}>
-                        <View style={[styles.emojiCircle, { backgroundColor: photo.preset.color + '22' }]}>
-                          {photo.uri ? (
-                            <Image source={{ uri: photo.uri }} style={styles.matchPhotoImage} resizeMode="cover" />
-                          ) : (
-                            <ThemedText style={{ fontSize: 28 }}>{photo.preset.emoji}</ThemedText>
-                          )}
-                        </View>
-                        <View style={{ flex: 1, gap: 2 }}>
-                          <View style={styles.matchCardHeader}>
-                            <ThemedText type="smallBold" style={{ flex: 1 }}>{donation.name}</ThemedText>
-                            <View style={styles.priorityScoreBadge}>
-                              <ThemedText type="code" style={styles.scoreText}>
-                                Score {donation.matchScore || 0}
-                              </ThemedText>
-                            </View>
-                          </View>
-                          
-                          <ThemedText type="code" style={styles.matchDesc}>
-                            Qtd: {donation.quantity} • Doador: {donation.donorName}
-                          </ThemedText>
+          </View>
+        )}
 
-                          <View style={styles.matchMetaRow}>
-                            <SymbolView name="location" size={11} tintColor={theme.textSecondary} />
-                            <ThemedText type="code" style={styles.metaText}>
-                              Distância: {donation.distancia_km ? `${donation.distancia_km.toFixed(1)} km` : (donation.matchedNgoId ? 'Calculando...' : 'N/A')}
-                            </ThemedText>
-                            <View style={styles.metaDot} />
-                            <SymbolView name="calendar" size={11} tintColor={theme.textSecondary} />
-                            <ThemedText type="code" style={styles.metaText}>
-                              Vence em: {donation.expiryDate}
-                            </ThemedText>
-                          </View>
-                        </View>
-                      </View>
-
-                      {/* Timeline & AFD State Transition Controller (RF-19, RF-20, RF-21) */}
-                      {isSelected && (
-                        <ThemedView type="backgroundElement" style={styles.stateTransitionArea}>
-                          <ThemedText type="smallBold" style={styles.sectionSubTitle}>Histórico de Ciclo de Vida da Doação (AFD - RF-19)</ThemedText>
-                          
-                          {/* Horizontal Timeline view of state machine */}
-                          <View style={styles.timelineWrapper}>
-                            {LIFECYCLE_STATES.map((stateName, index) => {
-                              const historyEntry = (donation.history || []).find(h => h.status === stateName);
-                              const isCompleted = !!historyEntry;
-                              const isActive = donation.status === stateName;
-                              
-                              return (
-                                <React.Fragment key={stateName}>
-                                  <View style={styles.timelineNodeCol}>
-                                    <View 
-                                      style={[
-                                        styles.timelineDot, 
-                                        isCompleted && styles.timelineDotDone,
-                                        isActive && styles.timelineDotActive
-                                      ]}
-                                    >
-                                      {isCompleted && (
-                                        <SymbolView name="checkmark" size={10} tintColor="#ffffff" />
-                                      )}
-                                    </View>
-                                    <ThemedText type="code" style={[styles.timelineNodeLabel, isActive && { fontWeight: 'bold', color: '#3c87f7' }]}>
-                                      {stateName}
-                                    </ThemedText>
-                                    {historyEntry && (
-                                      <ThemedText type="code" style={styles.timelineTimeLabel}>
-                                        {new Date(historyEntry.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                      </ThemedText>
-                                    )}
-                                  </View>
-                                  {index < LIFECYCLE_STATES.length - 1 && (
-                                    <View style={[styles.timelineLinkLine, isCompleted && styles.timelineLinkLineDone]} />
-                                  )}
-                                </React.Fragment>
-                              );
-                            })}
-                          </View>
-
-                          {/* Rejection / Success Banners inside timeline */}
-                          {errorMsg !== '' && (
-                            <View style={styles.errorTimelineBanner}><ThemedText type="small" style={{ color: '#ffffff' }}>{errorMsg}</ThemedText></View>
-                          )}
-                          {successMsg !== '' && (
-                            <View style={styles.successTimelineBanner}><ThemedText type="small" style={{ color: '#ffffff' }}>{successMsg}</ThemedText></View>
-                          )}
-
-                          {/* Control Buttons for state updates */}
-                          <ThemedText type="smallBold" style={styles.controlLabel}>Atualizar Fluxo da Coleta:</ThemedText>
-                          
-                          <TextInput 
-                            style={[styles.transitionInput, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-                            placeholder="Adicione observações da transição (ex: Coletado pelo motorista Pedro)"
-                            placeholderTextColor={theme.textSecondary}
-                            value={transitionNotes}
-                            onChangeText={setTransitionNotes}
-                          />
-
-                          <View style={styles.actionBtnGrid}>
-                            {donation.status === 'Matched' && (
-                              <Pressable 
-                                style={[styles.actionBtn, { backgroundColor: '#2196f3' }]}
-                                onPress={() => handleUpdateState('Notificado')}
-                                disabled={loading}
-                              >
-                                <SymbolView name="lock.shield" size={16} tintColor="#ffffff" />
-                                <ThemedText type="code" style={styles.actionBtnText}>Reservar Doação</ThemedText>
-                              </Pressable>
-                            )}
-                            
-                            {donation.status === 'Notificado' && (
-                              <Pressable 
-                                style={[styles.actionBtn, { backgroundColor: '#ff9800' }]}
-                                onPress={() => handleUpdateState('Coletado')}
-                                disabled={loading}
-                              >
-                                <SymbolView name={{ ios: 'shippingbox.fill', android: 'local_shipping', web: 'local_shipping' } as any} size={16} tintColor="#ffffff" />
-                                <ThemedText type="code" style={styles.actionBtnText}>Marcar Coletado</ThemedText>
-                              </Pressable>
-                            )}
-                            
-                            {donation.status === 'Coletado' && (
-                              <Pressable 
-                                style={[styles.actionBtn, { backgroundColor: '#4caf50' }]}
-                                onPress={() => handleUpdateState('Confirmado')}
-                                disabled={loading}
-                              >
-                                <SymbolView name="checkmark.seal" size={16} tintColor="#ffffff" />
-                                <ThemedText type="code" style={styles.actionBtnText}>Confirmar Recebido</ThemedText>
-                              </Pressable>
-                            )}
-
-                            {!['Confirmado', 'Cancelado'].includes(donation.status) && (
-                              <Pressable 
-                                style={[styles.actionBtn, { backgroundColor: '#f44336' }]}
-                                onPress={() => handleUpdateState('Cancelado')}
-                                disabled={loading}
-                              >
-                                <SymbolView name="xmark.octagon" size={16} tintColor="#ffffff" />
-                                <ThemedText type="code" style={styles.actionBtnText}>Cancelar Doação</ThemedText>
-                              </Pressable>
-                            )}
-                          </View>
-                          
-                          {loading && (
-                            <ActivityIndicator style={{ marginTop: Spacing.two }} size="small" color="#3c87f7" />
-                          )}
-                        </ThemedView>
-                      )}
-                    </Pressable>
-                  );
-                })}
-            </View>
-          )}
-        </ThemedView>
-
-        {/* NOTIFICATIONS INBOX */}
-        <ThemedView type="backgroundElement" style={styles.notificationsContainer}>
-          <View style={styles.notifHeader}>
-            <SymbolView name="bell.fill" size={18} tintColor="#e91e63" />
-            <ThemedText type="smallBold" style={{ marginLeft: Spacing.one }}>Mensagens e Alertas de Perecibilidade ({ngoNotifications.filter(n => !n.read).length})</ThemedText>
+        {/* MATCHING LIST */}
+        <ThemedView type="backgroundElement" style={styles.listContainer}>
+          <View style={styles.listHeader}>
+            <ThemedText type="smallBold">Doações Direcionadas (Matching Inteligente)</ThemedText>
+            <Pressable onPress={refresh} style={styles.refreshBtn}>
+              <SymbolView name="arrow.clockwise" size={14} tintColor={theme.textSecondary} />
+            </Pressable>
           </View>
           
-          {ngoNotifications.length === 0 ? (
-            <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center', padding: Spacing.three }}>
-              Sem notificações recentes.
-            </ThemedText>
-          ) : (
-            <View style={styles.notifList}>
-              {ngoNotifications.map(notif => (
-                <Pressable 
-                  key={notif.id} 
-                  onPress={() => store.markNotificationRead(notif.id)}
-                  style={[styles.notifCard, !notif.read && styles.notifUnread, { borderBottomColor: theme.backgroundSelected }]}
-                >
-                  <View style={{ flex: 1 }}>
-                    <ThemedText type="smallBold" style={!notif.read ? { color: '#e91e63' } : undefined}>{notif.title}</ThemedText>
-                    <ThemedText type="small" style={{ fontSize: 13, marginTop: 2 }}>{notif.message}</ThemedText>
-                    <ThemedText type="code" style={{ fontSize: 9, opacity: 0.5, marginTop: 4 }}>
-                      {new Date(notif.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                    </ThemedText>
-                  </View>
-                  {!notif.read && (
-                    <View style={styles.unreadDot} />
-                  )}
-                </Pressable>
-              ))}
-            </View>
+          <ThemedText type="small" themeColor="textSecondary" style={styles.listDesc}>
+            Lista ordenada automaticamente por prioridade (Distância + Perecibilidade + Escassez).
+          </ThemedText>
+
+          {(isLoading || loadingDash) && (
+            <ActivityIndicator style={{ margin: 24 }} color="#3c87f7" />
           )}
+
+          {(error || dashError) && (
+            <ErrorMessage message={error || dashError || 'Erro ao carregar'} />
+          )}
+
+          {!isLoading && !error && doacoes.length === 0 && (
+            <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
+              Nenhuma doação compatível no momento.
+            </ThemedText>
+          )}
+
+          {!isLoading && doacoes.map(doacao => {
+            const photo = getDonationPhoto(doacao.tipo_alimento);
+            const isSelected = selectedId === doacao.id;
+            
+            return (
+              <Pressable 
+                key={doacao.id}
+                onPress={() => {
+                  setSelectedId(isSelected ? null : doacao.id);
+                  setMsg('');
+                }}
+                style={[
+                  styles.matchCard, 
+                  isSelected && { borderColor: '#ff9800', borderWidth: 2 },
+                  { backgroundColor: theme.backgroundSelected }
+                ]}
+              >
+                <View style={styles.matchCardRow}>
+                  <View style={[styles.emojiCircle, { backgroundColor: photo.color + '22' }]}>
+                    <ThemedText style={{ fontSize: 28 }}>{photo.emoji}</ThemedText>
+                  </View>
+                  <View style={{ flex: 1, gap: 3 }}>
+                    <View style={styles.matchHeader}>
+                      <ThemedText type="smallBold">{doacao.tipo_alimento}</ThemedText>
+                      <View style={styles.scoreBadge}>
+                        <ThemedText type="code" style={styles.scoreText}>
+                          Score {Math.round(doacao.score_matching ?? 0)}
+                        </ThemedText>
+                      </View>
+                    </View>
+                    
+                    <ThemedText type="code" style={styles.metaText}>
+                      Qtd: {doacao.quantidade} kg • Doador: {doacao.doador_nome || '---'}
+                    </ThemedText>
+
+                    <View style={styles.metaRow}>
+                      <SymbolView name="location" size={11} tintColor={theme.textSecondary} />
+                      <ThemedText type="code" style={styles.metaDetail}>
+                        Distância: {doacao.distancia_km ? `${doacao.distancia_km.toFixed(1)} km` : 'Calculando...'}
+                      </ThemedText>
+                      <View style={styles.metaDot} />
+                      <SymbolView name="calendar" size={11} tintColor={theme.textSecondary} />
+                      <ThemedText type="code" style={styles.metaDetail}>
+                        Vence em: {doacao.data_validade}
+                      </ThemedText>
+                    </View>
+
+                    {/* Status */}
+                    <View style={styles.statusBadge}>
+                      <View style={[styles.statusDot, { backgroundColor: STATUS_COLORS[doacao.status] || '#757575' }]} />
+                      <ThemedText type="code" style={[styles.statusText, { color: STATUS_COLORS[doacao.status] || '#757575' }]}>
+                        {STATUS_LABELS[doacao.status] || doacao.status}
+                      </ThemedText>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Ação expandida */}
+                {isSelected && (
+                  <View style={styles.actionArea}>
+                    <ThemedText type="smallBold">Atualizar Fluxo da Coleta</ThemedText>
+                    
+                    <TextInput 
+                      style={[styles.noteInput, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
+                      placeholder="Observações (ex: Coletado pelo motorista Pedro)"
+                      placeholderTextColor={theme.textSecondary}
+                      value={notes}
+                      onChangeText={setNotes}
+                    />
+
+                    {msg !== '' && (
+                      <View style={styles.msgBanner}>
+                        <ThemedText type="small" style={{ color: '#4caf50' }}>{msg}</ThemedText>
+                      </View>
+                    )}
+
+                    <View style={styles.btnRow}>
+                      {doacao.status === 'matched' && (
+                        <Pressable 
+                          style={[styles.btn, { backgroundColor: '#2196f3' }]}
+                          onPress={() => handleAction(doacao, 'notificado')}
+                          disabled={loadingAction}
+                        >
+                          <ThemedText type="code" style={styles.btnText}>Reservar Doação</ThemedText>
+                        </Pressable>
+                      )}
+                      
+                      {doacao.status === 'notificado' && (
+                        <Pressable 
+                          style={[styles.btn, { backgroundColor: '#ff9800' }]}
+                          onPress={() => handleAction(doacao, 'coletado')}
+                          disabled={loadingAction}
+                        >
+                          <ThemedText type="code" style={styles.btnText}>Marcar Coletado</ThemedText>
+                        </Pressable>
+                      )}
+                      
+                      {doacao.status === 'coletado' && (
+                        <Pressable 
+                          style={[styles.btn, { backgroundColor: '#4caf50' }]}
+                          onPress={() => handleAction(doacao, 'confirmado')}
+                          disabled={loadingAction}
+                        >
+                          <ThemedText type="code" style={styles.btnText}>Confirmar Recebido</ThemedText>
+                        </Pressable>
+                      )}
+                    </View>
+
+                    {loadingAction && <ActivityIndicator style={{ marginTop: 12 }} color="#3c87f7" />}
+                  </View>
+                )}
+              </Pressable>
+            );
+          })}
         </ThemedView>
 
       </SafeAreaView>
@@ -617,438 +281,35 @@ export default function NgoScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    alignItems: 'center',
-    paddingBottom: BottomTabInset + Spacing.five,
-  },
-  safeArea: {
-    flex: 1,
-    width: '100%',
-    maxWidth: MaxContentWidth,
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.four,
-    gap: Spacing.four,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingBottom: Spacing.three,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(150, 150, 150, 0.15)',
-  },
-  loginHintBtn: {
-    backgroundColor: '#3c87f7',
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.two,
-    borderRadius: Spacing.one,
-  },
-  kpiContainer: {
-    flexDirection: 'row',
-    gap: Spacing.two,
-  },
-  kpiCard: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: Spacing.three,
-    borderRadius: Spacing.three,
-    elevation: 1,
-    borderWidth: 1,
-    borderColor: 'rgba(150,150,150,0.06)',
-  },
-  kpiValue: {
-    fontSize: 22,
-    fontWeight: '800',
-    marginTop: Spacing.one,
-  },
-  kpiLabel: {
-    fontSize: 9,
-    opacity: 0.8,
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  chartContainer: {
-    borderRadius: Spacing.three,
-    padding: Spacing.four,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: 'rgba(150,150,150,0.08)',
-  },
-  chartHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.four,
-  },
-  chartBody: {
-    flexDirection: 'row',
-    height: 180,
-    marginTop: Spacing.two,
-    marginBottom: Spacing.two,
-  },
-  chartYAxis: {
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    width: 35,
-    paddingRight: Spacing.two,
-    borderRightWidth: 1,
-    borderRightColor: 'rgba(150,150,150,0.2)',
-  },
-  yAxisLabel: {
-    fontSize: 9,
-    opacity: 0.6,
-  },
-  chartBarsArea: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'flex-end',
-    paddingLeft: Spacing.two,
-  },
-  chartBarCol: {
-    flex: 1,
-    alignItems: 'center',
-    maxWidth: 60,
-  },
-  barOuter: {
-    flex: 1,
-    width: '70%',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  barInner: {
-    width: '100%',
-    borderRadius: 3,
-  },
-  barActual: {
-    backgroundColor: '#3c87f7',
-  },
-  barPrediction: {
-    backgroundColor: '#9c27b0',
-  },
-  barValueLabel: {
-    fontSize: 8,
-    fontWeight: 'bold',
-    position: 'absolute',
-    top: -15,
-  },
-  barLabel: {
-    fontSize: 8,
-    marginTop: Spacing.one,
-    textAlign: 'center',
-  },
-  chartLegend: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: Spacing.four,
-    marginTop: Spacing.three,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(150,150,150,0.1)',
-    paddingTop: Spacing.two,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.one,
-  },
-  legendBox: {
-    width: 10,
-    height: 10,
-    borderRadius: 2,
-  },
-  listContainer: {
-    borderRadius: Spacing.three,
-    padding: Spacing.four,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: 'rgba(150,150,150,0.08)',
-  },
-  listTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  listDesc: {
-    fontSize: 12,
-    marginBottom: Spacing.three,
-  },
-  emptyListText: {
-    textAlign: 'center',
-    padding: Spacing.four,
-  },
-  matchedList: {
-    gap: Spacing.two,
-  },
-  matchCard: {
-    borderRadius: Spacing.two,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'transparent',
-    padding: Spacing.three,
-  },
-  matchCardRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  emojiCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: Spacing.three,
-    overflow: 'hidden',
-  },
-  matchPhotoImage: {
-    width: '100%',
-    height: '100%',
-  },
-  matchCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  priorityScoreBadge: {
-    backgroundColor: '#ff9800',
-    paddingVertical: 2,
-    paddingHorizontal: Spacing.two,
-    borderRadius: Spacing.one,
-  },
-  scoreText: {
-    color: '#ffffff',
-    fontSize: 9,
-    fontWeight: 'bold',
-  },
-  matchDesc: {
-    fontSize: 12,
-    opacity: 0.8,
-  },
-  matchMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.one,
-    marginTop: 2,
-  },
-  metaText: {
-    fontSize: 9,
-    opacity: 0.6,
-  },
-  metaDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: 'rgba(150,150,150,0.5)',
-  },
-  stateTransitionArea: {
-    marginTop: Spacing.three,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(150,150,150,0.15)',
-    paddingTop: Spacing.three,
-    gap: Spacing.two,
-  },
-  sectionSubTitle: {
-    fontSize: 12,
-    color: '#3c87f7',
-  },
-  timelineWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: Spacing.two,
-    overflow: 'scroll',
-    marginVertical: Spacing.two,
-  },
-  timelineNodeCol: {
-    alignItems: 'center',
-    flex: 1,
-    minWidth: 50,
-  },
-  timelineDot: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: 'rgba(150,150,150,0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  timelineDotDone: {
-    backgroundColor: '#4caf50',
-  },
-  timelineDotActive: {
-    backgroundColor: '#2196f3',
-    borderWidth: 2,
-    borderColor: '#ffffff',
-  },
-  timelineNodeLabel: {
-    fontSize: 8,
-    marginTop: 4,
-    textAlign: 'center',
-    opacity: 0.8,
-  },
-  timelineTimeLabel: {
-    fontSize: 7,
-    opacity: 0.5,
-    marginTop: 2,
-  },
-  timelineLinkLine: {
-    flex: 1,
-    height: 2,
-    backgroundColor: 'rgba(150,150,150,0.2)',
-    marginHorizontal: -5,
-  },
-  timelineLinkLineDone: {
-    backgroundColor: '#4caf50',
-  },
-  errorTimelineBanner: {
-    backgroundColor: '#f44336',
-    padding: Spacing.two,
-    borderRadius: Spacing.one,
-    marginTop: Spacing.one,
-  },
-  successTimelineBanner: {
-    backgroundColor: '#4caf50',
-    padding: Spacing.two,
-    borderRadius: Spacing.one,
-    marginTop: Spacing.one,
-  },
-  controlLabel: {
-    fontSize: 12,
-    marginTop: Spacing.two,
-  },
-  transitionInput: {
-    height: 40,
-    borderWidth: 1,
-    borderRadius: Spacing.one,
-    paddingHorizontal: Spacing.two,
-    fontSize: 13,
-  },
-  actionBtnGrid: {
-    flexDirection: 'row',
-    gap: Spacing.one,
-    marginTop: Spacing.one,
-  },
-  actionBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    height: 42,
-    borderRadius: Spacing.one,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: Spacing.one,
-  },
-  actionBtnText: {
-    color: '#ffffff',
-    fontSize: 9,
-    fontWeight: 'bold',
-  },
-  notificationsContainer: {
-    borderRadius: Spacing.three,
-    padding: Spacing.four,
-    elevation: 2,
-  },
-  notifHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.three,
-  },
-  notifList: {
-    gap: Spacing.one,
-  },
-  notifCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: Spacing.two,
-    borderBottomWidth: 1,
-  },
-  notifUnread: {
-    backgroundColor: '#e91e630b',
-    borderRadius: Spacing.one,
-    paddingHorizontal: Spacing.two,
-  },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#e91e63',
-    marginLeft: Spacing.two,
-  },
-  configContainer: {
-    borderRadius: Spacing.three,
-    padding: Spacing.four,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: 'rgba(150,150,150,0.08)',
-  },
-  configHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  configBody: {
-    marginTop: Spacing.four,
-    gap: Spacing.three,
-  },
-  configRow: {
-    gap: Spacing.one,
-  },
-  configLabel: {
-    fontSize: 11,
-    opacity: 0.8,
-    marginBottom: 2,
-  },
-  configInput: {
-    height: 40,
-    borderWidth: 1,
-    borderRadius: Spacing.one,
-    paddingHorizontal: Spacing.two,
-    fontSize: 14,
-  },
-  configInputMultiline: {
-    height: 70,
-    textAlignVertical: 'top',
-    paddingTop: Spacing.one,
-  },
-  foodTypesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.one,
-  },
-  foodTypeChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.two,
-    borderRadius: Spacing.one,
-    borderWidth: 1,
-  },
-  foodTypeChipSelected: {
-    backgroundColor: '#4caf5015',
-    borderColor: '#4caf50',
-  },
-  foodTypeLabel: {
-    fontSize: 10,
-  },
-  configSaveBtn: {
-    flexDirection: 'row',
-    height: 44,
-    borderRadius: Spacing.one,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: Spacing.one,
-    marginTop: Spacing.two,
-  },
-  configSaveBtnText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  configSavedBanner: {
-    backgroundColor: '#4caf50',
-    padding: Spacing.two,
-    borderRadius: Spacing.one,
-    marginTop: Spacing.one,
-  },
+  container: { flex: 1 },
+  scrollContent: { paddingHorizontal: Spacing.four, paddingBottom: BottomTabInset + Spacing.four },
+  safeArea: { maxWidth: MaxContentWidth, width: '100%', alignSelf: 'center' },
+  header: { marginTop: Spacing.four, marginBottom: Spacing.three },
+  statsRow: { flexDirection: 'row', gap: Spacing.two, marginBottom: Spacing.three },
+  statCard: { flex: 1, borderRadius: 12, padding: Spacing.three, alignItems: 'center', borderWidth: 1, borderColor: '#333' },
+  alertBanner: { flexDirection: 'row', alignItems: 'center', padding: Spacing.three, borderRadius: 10, marginBottom: Spacing.three, borderWidth: 1, borderColor: '#e91e6344' },
+  listContainer: { marginTop: Spacing.three, borderRadius: 16, padding: Spacing.three, borderWidth: 1, borderColor: '#333' },
+  listHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.one },
+  refreshBtn: { padding: 4 },
+  listDesc: { marginBottom: Spacing.three, fontSize: 12 },
+  emptyText: { textAlign: 'center', padding: Spacing.three },
+  matchCard: { borderRadius: 16, padding: Spacing.three, marginBottom: Spacing.three, borderWidth: 1, borderColor: '#333' },
+  matchCardRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  emojiCircle: { width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center' },
+  matchHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  scoreBadge: { backgroundColor: '#ff980022', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
+  scoreText: { color: '#ff9800', fontSize: 11 },
+  metaText: { fontSize: 12, opacity: 0.7 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  metaDetail: { fontSize: 11, opacity: 0.6 },
+  metaDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#666', marginHorizontal: 4 },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  statusText: { fontSize: 10 },
+  actionArea: { marginTop: Spacing.three, paddingTop: Spacing.three, borderTopWidth: 1, borderTopColor: '#333' },
+  noteInput: { borderWidth: 1, borderRadius: 10, padding: 10, marginTop: Spacing.two, fontSize: 13 },
+  msgBanner: { marginTop: Spacing.two },
+  btnRow: { flexDirection: 'row', gap: Spacing.two, marginTop: Spacing.three },
+  btn: { flex: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  btnText: { color: '#ffffff', fontSize: 12, fontWeight: '600' },
 });
