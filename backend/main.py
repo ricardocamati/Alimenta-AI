@@ -9,6 +9,7 @@ from auth import auth_router
 from config import settings
 from dashboard import dashboard_router
 from doacoes import doacoes_router
+from historico import router as historico_router
 
 logger = logging.getLogger(__name__)
 
@@ -86,8 +87,27 @@ def _get_test_overrides() -> dict:
     from database.connection import AsyncSessionLocal
     from database.models import Usuario
     from sqlalchemy.orm import selectinload
+    from auth.utils import decode_access_token
+    from fastapi import Depends
 
-    async def _mock_admin():
+    async def _mock_user_with_token(token: str) -> Usuario:
+        """Try real token first; fall back to admin."""
+        try:
+            payload = decode_access_token(token)
+            user_id = payload.get("sub")
+            if user_id:
+                async with AsyncSessionLocal() as db:
+                    result = await db.execute(
+                        select(Usuario)
+                        .options(selectinload(Usuario.ong))
+                        .where(Usuario.id == int(user_id))
+                    )
+                    user = result.scalar_one_or_none()
+                    if user:
+                        return user
+        except Exception:
+            pass
+        # Fallback to admin
         async with AsyncSessionLocal() as db:
             result = await db.execute(
                 select(Usuario)
@@ -96,21 +116,37 @@ def _get_test_overrides() -> dict:
             )
             return result.scalar_one()
 
-    async def _mock_doador():
+    async def _mock_current_user(token: str = Depends(oauth2_scheme)):
+        return await _mock_user_with_token(token)
+
+    async def _mock_current_user_with_ong(token: str = Depends(oauth2_scheme)):
+        return await _mock_user_with_token(token)
+
+    async def _mock_doador(token: str = Depends(oauth2_scheme)):
+        try:
+            payload = decode_access_token(token)
+            user_id = payload.get("sub")
+            if user_id:
+                async with AsyncSessionLocal() as db:
+                    result = await db.execute(
+                        select(Usuario).where(Usuario.id == int(user_id))
+                    )
+                    user = result.scalar_one_or_none()
+                    if user and user.tipo.value == "doador":
+                        return user
+        except Exception:
+            pass
         async with AsyncSessionLocal() as db:
             result = await db.execute(
                 select(Usuario).where(Usuario.email == "doador@teste.com")
             )
             return result.scalar_one()
 
-    async def _mock_token():
-        return "test-mode-token"
-
+    # Don't override oauth2_scheme — keep real token extraction from Authorization header
     return {
-        get_current_user: _mock_admin,
-        get_current_user_with_ong: _mock_admin,
+        get_current_user: _mock_current_user,
+        get_current_user_with_ong: _mock_current_user_with_ong,
         require_doador: _mock_doador,
-        oauth2_scheme: _mock_token,
     }
 
 
@@ -126,9 +162,54 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(doacoes_router)
+app.include_router(historico_router)
 app.include_router(dashboard_router)
 
 
 @app.get("/")
 async def root():
     return {"message": "Alimenta.AI API"}
+
+
+@app.get("/health")
+async def health_check():
+    from database.connection import async_engine
+    from ml.predictor import _pipeline
+    from ml.demand_predictor import _sf
+
+    status = {"api": "ok", "version": "0.1.0"}
+    healthy = True
+
+    # Check DB
+    try:
+        from sqlalchemy import text
+        async with async_engine.connect() as conn:
+            result = await conn.execute(text("SELECT 1"))
+            row = result.fetchone()
+            if row is None:
+                raise RuntimeError("DB returned no row")
+        status["database"] = "ok"
+    except Exception:
+        status["database"] = "error"
+        healthy = False
+
+    # Check ML models
+    status["ml_urgency_model"] = "loaded" if _pipeline is not None else "missing"
+    status["ml_demand_model"] = "loaded" if _sf is not None else "missing"
+    if _pipeline is None or _sf is None:
+        healthy = False
+
+    # Check disk
+    import shutil
+    total, used, free = shutil.disk_usage("/home/rick/alimenta-ai-clone/backend")
+    free_gb = free / (1024**3)
+    status["disk_free_gb"] = round(free_gb, 2)
+    if free_gb < 0.5:
+        status["disk"] = "low"
+        healthy = False
+    else:
+        status["disk"] = "ok"
+
+    from fastapi.responses import JSONResponse
+    code = 200 if healthy else 503
+    return JSONResponse(content=status, status_code=code)

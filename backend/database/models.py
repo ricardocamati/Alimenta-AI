@@ -54,6 +54,8 @@ class Usuario(Base):
     )
     cpf_cnpj: Mapped[str | None] = mapped_column(String(20), unique=True, nullable=True)
     endereco: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     telefone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     criado_em: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
@@ -80,6 +82,7 @@ class Doacao(Base):
     tipo_alimento: Mapped[str] = mapped_column(String(100), nullable=False)
     categoria: Mapped[str] = mapped_column(String(100), nullable=False)
     quantidade: Mapped[float] = mapped_column(Float, nullable=False)
+    unidade_medida: Mapped[str | None] = mapped_column(String(20), nullable=True)
     foto_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     data_validade: Mapped[date] = mapped_column(Date, nullable=False)
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -99,6 +102,7 @@ class Doacao(Base):
         Integer, ForeignKey("ongs.id", ondelete="SET NULL"), nullable=True
     )
     score_matching: Mapped[float | None] = mapped_column(Float, nullable=True)
+    distancia_km: Mapped[float | None] = mapped_column(Float, nullable=True)
     criado_em: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
@@ -115,6 +119,10 @@ class Doacao(Base):
     logs: Mapped[list["LogAFD"]] = relationship(
         "LogAFD", back_populates="doacao", cascade="all, delete-orphan"
     )
+
+    @property
+    def doador_nome(self) -> str | None:
+        return self.doador.nome if self.doador else None
     scores: Mapped[list["ScoreMatching"]] = relationship(
         "ScoreMatching", back_populates="doacao", cascade="all, delete-orphan"
     )

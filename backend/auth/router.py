@@ -8,7 +8,7 @@ from auth.schemas import LoginRequest, TokenResponse, UsuarioCreate, UsuarioResp
 from auth.service import authenticate, register
 from auth.utils import create_access_token, decode_access_token
 from database.connection import async_get_db, get_db
-from database.models import Usuario
+from database.models import ONG, TipoUsuario, Usuario
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
@@ -66,30 +66,27 @@ async def get_current_user_with_ong(
     return usuario
 
 
-@router.post("/register", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)
-def register_endpoint(payload: UsuarioCreate, db=Depends(get_db)):
-    existente = db.query(Usuario).filter(Usuario.email == payload.email).first()
-    if existente:
+def require_ong(
+    current_user: Usuario = Depends(get_current_user_with_ong),
+) -> Usuario:
+    if current_user.tipo != TipoUsuario.ong:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Email ja cadastrado",
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Apenas ONGs podem acessar este recurso",
         )
-    if payload.cpf_cnpj:
-        cpf_cnpj_existente = (
-            db.query(Usuario).filter(Usuario.cpf_cnpj == payload.cpf_cnpj).first()
-        )
-        if cpf_cnpj_existente:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="CPF/CNPJ ja cadastrado",
-            )
-    usuario = register(db, payload)
-    return usuario
+    return current_user
+
+
+@router.post("/register", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)
+async def register_endpoint(payload: UsuarioCreate, db: AsyncSession = Depends(async_get_db)):
+    from auth.service import register_async
+    return await register_async(db, payload)
 
 
 @router.post("/login", response_model=TokenResponse)
-def login_endpoint(payload: LoginRequest, db=Depends(get_db)):
-    usuario = authenticate(db, payload.email, payload.senha)
+async def login_endpoint(payload: LoginRequest, db: AsyncSession = Depends(async_get_db)):
+    from auth.service import authenticate_async
+    usuario = await authenticate_async(db, payload.email, payload.senha)
     if not usuario:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -103,3 +100,17 @@ def login_endpoint(payload: LoginRequest, db=Depends(get_db)):
 @router.get("/me", response_model=UsuarioResponse)
 async def me_endpoint(current_user: Usuario = Depends(get_current_user_with_ong)):
     return current_user
+
+
+@router.get("/cep/{cep}")
+async def lookup_cep(cep: str):
+    """Busca dados de um CEP brasileiro via ViaCEP + Nominatim (lat/long).
+    Usado pelo frontend no cadastro para auto-preencher endereço."""
+    from matching.geocoding import fetch_cep
+    result = await fetch_cep(cep)
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="CEP nao encontrado ou invalido",
+        )
+    return result

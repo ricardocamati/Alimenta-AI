@@ -16,6 +16,7 @@ class DoacaoCreate(BaseModel):
     tipo_alimento: str = Field(min_length=1, max_length=100)
     categoria: str = Field(min_length=1, max_length=100)
     quantidade: float
+    unidade_medida: str = Field(default="kg", min_length=1, max_length=20)
     data_validade: date
     foto_url: str | None = Field(default=None, max_length=500)
     latitude: float | None = Field(default=None, ge=-90, le=90)
@@ -46,12 +47,19 @@ class LogAFDResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class StatusUpdateRequest(BaseModel):
+    status: str
+    observacao: str | None = None
+
+
 class DoacaoResponse(BaseModel):
     id: int
     doador_id: int
+    doador_nome: str | None = None
     tipo_alimento: str
     categoria: str
     quantidade: float
+    unidade_medida: str | None = None
     foto_url: str | None = None
     data_validade: date
     latitude: float | None = None
@@ -59,11 +67,13 @@ class DoacaoResponse(BaseModel):
     status: StatusDoacao
     urgencia: Urgencia
     score_matching: float | None = None
+    distancia_km: float | None = None
     criado_em: datetime
     atualizado_em: datetime
+    logs: list[LogAFDResponse] = []
 
     model_config = {"from_attributes": True}
 
 
 class DoacaoDetailedResponse(DoacaoResponse):
-    logs: list[LogAFDResponse] = []
+    pass  # Agora herda logs de DoacaoResponse

@@ -1,0 +1,12 @@
+INFO:     Started server process [826057]
+INFO:     Waiting for application startup.
+*** MODO TESTE ATIVO: autenticacao e seguranca desabilitados ***
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8002 (Press CTRL+C to quit)
+INFO:     192.168.68.201:37516 - "POST /auth/login HTTP/1.1" 200 OK
+INFO:     192.168.68.201:37530 - "GET /doacoes/ HTTP/1.1" 200 OK
+INFO:     192.168.68.201:37546 - "GET /doacoes/5 HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [826057]

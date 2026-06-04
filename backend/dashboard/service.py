@@ -147,7 +147,31 @@ async def get_ong_dashboard(db: AsyncSession, user: Usuario) -> DashboardONG:
         )
     ) or 0
 
-    demanda_prevista = DemandPredictor.predict_demand(ong_id)
+    # --- NOVO: somar quilos confirmados ---
+    kg_recebidos = await db.scalar(
+        select(func.sum(Doacao.quantidade))
+        .select_from(Doacao)
+        .where(
+            Doacao.ong_matched_id == ong_id,
+            Doacao.status == StatusDoacao.confirmado,
+        )
+    ) or 0.0
+    total_kg_recebidos = round(float(kg_recebidos), 1)
+    # --- FIM NOVO ---
+
+    # Busca demanda: historico real primeiro, depois modelo
+    from database.models import HistoricoAtendimento
+    hist_result = await db.execute(
+        select(HistoricoAtendimento.quantidade_atendida)
+        .where(HistoricoAtendimento.ong_id == ong_id)
+        .order_by(HistoricoAtendimento.semana.desc())
+        .limit(4)
+    )
+    valores = [r[0] for r in hist_result.all()]
+    if len(valores) >= 2:
+        demanda_prevista = round(sum(valores) / len(valores), 1)
+    else:
+        demanda_prevista = DemandPredictor.predict_demand(ong_id)
 
     media_qtd = await db.scalar(
         select(func.avg(Doacao.quantidade))
@@ -177,6 +201,7 @@ async def get_ong_dashboard(db: AsyncSession, user: Usuario) -> DashboardONG:
 
     return DashboardONG(
         total_doacoes_recebidas=recebidas,
+        total_kg_recebidos=total_kg_recebidos,
         demanda_prevista_proxima_semana=demanda_prevista,
         alerta_escassez=alerta,
         doacoes_pendentes=pendentes,
