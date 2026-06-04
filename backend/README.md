@@ -1,0 +1,173 @@
+# Alimenta.AI — Backend
+
+API do sistema preditivo de redistribuição inteligente de alimentos.
+
+Stack: **FastAPI + SQLAlchemy + SQLite + statsforecast + scikit-learn**
+
+---
+
+## Inicio rapido (modo de teste)
+
+Ideal para desenvolvimento local, AEP e demos. Usa SQLite local e desativa
+a checagem de `SECRET_KEY`.
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Sobe a API em 0.0.0.0:8002
+TEST_MODE=true uvicorn main:app --host 0.0.0.0 --port 8002 --reload
+```
+
+A documentacao interativa fica em:
+
+- Swagger UI -> http://localhost:8002/docs
+- ReDoc      -> http://localhost:8002/redoc
+
+### O que o `TEST_MODE=true` muda
+
+- **`SECRET_KEY`**: na producao e obrigatorio via `.env`; em modo de teste usa um
+  sentinel embutido (nao seguro, mas pratico para dev).
+- **Banco**: padrao e `sqlite:///./alimenta.db` (criado no primeiro start).
+- **CEP (ViaCEP)**: funciona igual em qualquer modo.
+- **Predicao ML (statsforecast)**: identica nos dois modos.
+
+> Aviso: nunca use `TEST_MODE=true` em producao. O `SECRET_KEY` e o mesmo
+> para todos os installs de teste, entao qualquer um pode forjar tokens JWT.
+
+### Variaveis de ambiente uteis
+
+```bash
+# .env (opcional)
+TEST_MODE=true
+DATABASE_URL=sqlite:///./alimenta.db
+
+# Gere com: python -c "import secrets; print(secrets.token_hex(32))"
+SECRET_KEY=cole_aqui_o_token_gerado
+```
+
+---
+
+## Usuarios seed (modo de teste)
+
+Quando o banco e criado pela primeira vez em `TEST_MODE`, tres contas ficam
+disponiveis para teste:
+
+- Doador: `doador@exemplo.com` / `teste123`
+- ONG:    `ong@teste.com`       / `teste123`
+- Admin:  `admin@exemplo.com`   / `teste123`
+
+---
+
+## Testando a API
+
+### 1. Healthcheck
+
+```bash
+curl -s http://localhost:8002/health
+```
+
+Resposta esperada:
+
+```json
+{"status": "ok"}
+```
+
+### 2. Login (gera token JWT)
+
+```bash
+curl -s -X POST http://localhost:8002/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"ong@teste.com","senha":"teste123"}'
+```
+
+A resposta contem `access_token`. Guarde em uma variavel:
+
+```bash
+TOKEN=COLE_O...=*** _ACCESS_TOKEN_AQUI>
+```
+
+### 3. Endpoint autenticado (dashboard da ONG)
+
+```bash
+curl -s http://localhost:8002/dashboard/ong \
+  -H "Authorization: Bearer COLE_O...=*** _TOKEN_AQUI"
+
+### 4. Auto-fill de CEP (público)
+
+```bash
+curl -s http://localhost:8002/auth/cep/01310100
+```
+
+Resposta:
+
+```json
+{
+  "cep": "01310-100",
+  "logradouro": "Avenida Paulista",
+  "bairro": "Bela Vista",
+  "cidade": "Sao Paulo",
+  "uf": "SP",
+  "latitude": -23.561414,
+  "longitude": -46.655881
+}
+```
+
+CEP invalido -> **HTTP 404** com `{"detail": "CEP nao encontrado"}`.
+
+### 5. Listar todos os endpoints
+
+```bash
+curl -s http://localhost:8002/openapi.json | python3 -m json.tool | head -40
+```
+
+---
+
+## Estrutura
+
+```
+backend/
++- main.py              # entrypoint FastAPI
++- config.py            # Settings (TEST_MODE, DATABASE_URL, SECRET_KEY)
++- auth/                # login, cadastro, JWT, CEP (ViaCEP)
++- doacoes/             # CRUD de doacoes + matching
++- matching/            # algoritmo de matching + geocoding
++- ml/                  # modelo de demanda (statsforecast) + urgencia
++- dashboard/           # agregacoes para os portais
++- historico/           # registro de atendimento semanal da ONG
++- database/            # sessao SQLAlchemy + modelos
++- models/              # artefatos .pkl (ignorados pelo git)
++- alembic/             # migracoes
++- requirements.txt
+```
+
+---
+
+## Modo producao (resumo)
+
+```bash
+# 1. Gerar SECRET_KEY
+export SECRET_KEY=*** -c "import secrets; print(secrets.token_hex(32))"
+
+# 2. Definir banco (PostgreSQL recomendado)
+postgresql://usuario:***@host:5432/alimenta
+
+# 3. Rodar migracoes
+alembic upgrade head
+
+# 4. Subir com workers
+unset TEST_MODE
+uvicorn main:app --host 0.0.0.0 --port 8002 --workers 4
+```
+
+---
+
+## Problemas comuns
+
+- **`ValueError: SECRET_KEY nao configurada...`** -- Defina `SECRET_KEY` ou rode com `TEST_MODE=true`.
+- **`Address already in use` na porta 8002** -- `lsof -i :8002`, mate o PID, ou use outra porta.
+- **`alimenta.db` lockado** -- Pare todos os processos uvicorn e apague `alimenta.db-journal`.
+- **`ModuleNotFoundError: fastapi`** -- Ative a venv: `source .venv/bin/activate`.
+- **Frontend em 404 nas rotas** (`/ngo`, `/donor`, ...) -- Use o `scripts/spa_serve.py` (ver `frontend/Alimenta-AI/README.md`).
