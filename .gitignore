@@ -7,6 +7,11 @@ __pycache__/
 .env
 *.db
 
+# Logs (backend do uvicorn / debug / relatórios antigos)
+*.log
+backend/RELATORIO_*.md
+backend/RELATORIOS/
+
 # Modelos ML (gerados por scripts de treinamento)
 backend/models/*.pkl
 
