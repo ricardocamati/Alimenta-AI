@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   StyleSheet,
   TextInput,
@@ -17,26 +17,15 @@ import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing, MaxContentWidth } from '@/constants/theme';
+import { lookupCEP, type CEPData } from '@/services/cepService';
+import {
+  maskCpfCnpj,
+  maskPhone,
+  maskCEP,
+  isValidCpfCnpjFormat,
+  isValidCEP,
+} from '@/utils/masks';
 import * as Location from 'expo-location';
-
-async function geocodeAddress(endereco: string): Promise<{ latitude: number; longitude: number } | null> {
-  try {
-    if (Platform.OS === 'web') {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(endereco)}`,
-        { headers: { 'Accept-Language': 'pt-BR' } }
-      );
-      const data = await res.json();
-      if (!data || data.length === 0) return null;
-      return { latitude: parseFloat(data[0].lat), longitude: parseFloat(data[0].lon) };
-    }
-    const results = await Location.geocodeAsync(endereco);
-    if (!results || results.length === 0) return null;
-    return { latitude: results[0].latitude, longitude: results[0].longitude };
-  } catch {
-    return null;
-  }
-}
 
 export default function RegisterScreen() {
   const { user, register } = useAuth();
@@ -44,22 +33,37 @@ export default function RegisterScreen() {
 
   const [mode, setMode] = useState<'donor' | 'ngo'>('donor');
 
-  // Input states
+  // Common
   const [name, setName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [cnpjCpf, setCnpjCpf] = useState('');
   const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
-  const [capacity, setCapacity] = useState('');
   const [password, setPassword] = useState('');
 
-  // UI state
+  // Endereço estruturado
+  const [cep, setCep] = useState('');
+  const [logradouro, setLogradouro] = useState('');
+  const [numero, setNumero] = useState('');
+  const [complemento, setComplemento] = useState('');
+  const [bairro, setBairro] = useState('');
+  const [cidade, setCidade] = useState('');
+  const [uf, setUf] = useState('');
+  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [cepStatus, setCepStatus] = useState<'idle' | 'loading' | 'found' | 'error'>('idle');
+
+  // NGO only
+  const [capacity, setCapacity] = useState('');
+
+  // UI
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  // Redirect if already logged in (guard against double redirect)
+  // GPS lookup
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsMsg, setGpsMsg] = useState('');
+
   const redirectedRef = useRef(false);
   useEffect(() => {
     if (user && !redirectedRef.current) {
@@ -70,31 +74,111 @@ export default function RegisterScreen() {
     }
   }, [user]);
 
-  const clearFieldErrors = () => { setFieldErrors({}); };
+  const clearFieldErrors = () => setFieldErrors({});
+
+  // Auto-busca CEP: dispara quando CEP tem 8 dígitos
+  const fetchCepData = useCallback(async (rawCep: string) => {
+    if (!isValidCEP(rawCep)) {
+      setCepStatus('idle');
+      return;
+    }
+    setCepStatus('loading');
+    const data: CEPData | null = await lookupCEP(rawCep);
+    if (data) {
+      setLogradouro(data.logradouro);
+      setBairro(data.bairro);
+      setCidade(data.cidade);
+      setUf(data.uf);
+      if (data.complemento && !complemento) setComplemento(data.complemento);
+      if (data.latitude != null && data.longitude != null) {
+        setCoords({ lat: data.latitude, lon: data.longitude });
+      }
+      setCepStatus('found');
+      setErrorMsg('');
+    } else {
+      setCepStatus('error');
+    }
+  }, [complemento]);
+
+  // Debounce da busca de CEP
+  useEffect(() => {
+    const digits = cep.replace(/\D/g, '');
+    if (digits.length !== 8) {
+      setCepStatus('idle');
+      return;
+    }
+    if (cepStatus === 'found' || cepStatus === 'loading') return;
+    const t = setTimeout(() => fetchCepData(cep), 600);
+    return () => clearTimeout(t);
+  }, [cep, cepStatus, fetchCepData]);
+
+  // Botão "usar minha localização"
+  const useMyLocation = async () => {
+    setGpsLoading(true);
+    setGpsMsg('');
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setGpsMsg('Permissão negada. Digite o endereço manualmente.');
+        return;
+      }
+      const position = await Location.getCurrentPositionAsync({});
+      setCoords({ lat: position.coords.latitude, lon: position.coords.longitude });
+      setGpsMsg(`Localização capturada: ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`);
+    } catch (e: any) {
+      setGpsMsg('Não foi possível obter localização.');
+    } finally {
+      setGpsLoading(false);
+    }
+  };
+
+  const buildFullAddress = () =>
+    [logradouro, numero, complemento, bairro, cidade, uf, cep]
+      .filter(Boolean)
+      .join(', ');
+
+  const validateCommon = (errors: Record<string, string>) => {
+    if (!name) errors.nome = 'Nome é obrigatório.';
+    if (!regEmail || !regEmail.includes('@')) errors.email = 'E-mail inválido.';
+    if (!isValidCpfCnpjFormat(cnpjCpf)) errors.cpf_cnpj = 'Formato deve ser 000.000.000-00 ou 00.000.000/0000-00.';
+    if (!isValidPhone(phone)) errors.telefone = 'Telefone inválido.';
+    if (!cep) errors.cep = 'CEP é obrigatório.';
+    else if (!isValidCEP(cep)) errors.cep = 'CEP deve ter 8 dígitos.';
+    if (!logradouro) errors.logradouro = 'Logradouro é obrigatório.';
+    if (!numero) errors.numero = 'Número é obrigatório.';
+    if (!bairro) errors.bairro = 'Bairro é obrigatório.';
+    if (!cidade) errors.cidade = 'Cidade é obrigatória.';
+    if (!uf || uf.length !== 2) errors.uf = 'UF deve ter 2 letras (ex: SP).';
+    if (!password || password.length < 6) errors.senha = 'Mínimo 6 caracteres.';
+  };
 
   const handleRegisterDonor = async () => {
     clearFieldErrors();
     const errors: Record<string, string> = {};
-    if (!name) errors.nome = 'Nome é obrigatório.';
-    if (!regEmail) errors.email = 'E-mail é obrigatório.';
-    if (!cnpjCpf) errors.cpf_cnpj = 'CPF/CNPJ é obrigatório.';
-    if (!phone) errors.telefone = 'Telefone é obrigatório.';
-    if (!address) errors.endereco = 'Endereço é obrigatório.';
-    if (!password || password.length < 6) errors.senha = 'Mínimo 6 caracteres.';
+    validateCommon(errors);
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
-      setErrorMsg('Verifique os campos obrigatórios.');
+      setErrorMsg('Verifique os campos destacados.');
       return;
     }
     setErrorMsg('');
     setLoading(true);
     try {
+      const fullAddress = buildFullAddress();
       await register({
-        nome: name, email: regEmail, senha: password, tipo: 'doador',
-        cpf_cnpj: cnpjCpf, endereco: address, telefone: phone,
+        nome: name,
+        email: regEmail,
+        senha: password,
+        tipo: 'doador',
+        cpf_cnpj: cnpjCpf,
+        endereco: fullAddress,
+        telefone: phone,
       });
       setSuccessMsg('Cadastro de Doador realizado!');
-      setName(''); setRegEmail(''); setCnpjCpf(''); setPhone(''); setAddress(''); setPassword('');
+      setName(''); setRegEmail(''); setCnpjCpf(''); setPhone(''); setPassword('');
+      setCep(''); setLogradouro(''); setNumero(''); setComplemento(''); setBairro(''); setCidade(''); setUf('');
+      setCoords(null);
+      setCepStatus('idle');
       setTimeout(() => setSuccessMsg(''), 2000);
     } catch (err: any) {
       setErrorMsg(err.message || 'Erro ao realizar cadastro.');
@@ -106,37 +190,38 @@ export default function RegisterScreen() {
   const handleRegisterNgo = async () => {
     clearFieldErrors();
     const errors: Record<string, string> = {};
-    if (!name) errors.nome = 'Nome é obrigatório.';
-    if (!regEmail) errors.email = 'E-mail é obrigatório.';
-    if (!cnpjCpf) errors.cnpj = 'CNPJ é obrigatório.';
-    if (!address) errors.endereco = 'Endereço é obrigatório.';
-    if (!capacity) errors.capacidade = 'Capacidade é obrigatória.';
-    if (!password || password.length < 6) errors.senha = 'Mínimo 6 caracteres.';
+    validateCommon(errors);
+    if (!capacity || parseInt(capacity) < 1) errors.capacidade = 'Capacidade deve ser > 0.';
+    if (!coords) errors.coords = 'Coordenadas ausentes — busque por CEP ou use o botão de GPS.';
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
-      setErrorMsg('Verifique os campos obrigatórios.');
+      setErrorMsg('Verifique os campos destacados.');
       return;
     }
     setErrorMsg('');
     setLoading(true);
     try {
-      const coords = await geocodeAddress(address);
-      const ongPayload: Record<string, any> = {
-        cnpj: cnpjCpf,
-        capacidade_atendimento: parseInt(capacity) || 100,
-      };
-      if (coords) {
-        ongPayload.latitude = coords.latitude;
-        ongPayload.longitude = coords.longitude;
-      }
-
+      const fullAddress = buildFullAddress();
       await register({
-        nome: name, email: regEmail, senha: password, tipo: 'ong',
-        cpf_cnpj: cnpjCpf, endereco: address,
-        ong: ongPayload,
+        nome: name,
+        email: regEmail,
+        senha: password,
+        tipo: 'ong',
+        cpf_cnpj: cnpjCpf,
+        endereco: fullAddress,
+        telefone: phone,
+        ong: {
+          cnpj: cnpjCpf,
+          capacidade_atendimento: parseInt(capacity) || 100,
+          latitude: coords!.lat,
+          longitude: coords!.lon,
+        },
       });
       setSuccessMsg('Cadastro de ONG realizado!');
-      setName(''); setRegEmail(''); setCnpjCpf(''); setAddress(''); setCapacity(''); setPassword('');
+      setName(''); setRegEmail(''); setCnpjCpf(''); setPhone(''); setPassword('');
+      setCep(''); setLogradouro(''); setNumero(''); setComplemento(''); setBairro(''); setCidade(''); setUf('');
+      setCoords(null);
+      setCepStatus('idle');
       setTimeout(() => setSuccessMsg(''), 2000);
     } catch (err: any) {
       setErrorMsg(err.message || 'Erro ao realizar cadastro.');
@@ -145,10 +230,36 @@ export default function RegisterScreen() {
     }
   };
 
+  // Componentes reutilizáveis
+  const Label = ({ text, error }: { text: string; error?: string }) => (
+    <View style={styles.labelRow}>
+      <ThemedText type="smallBold" style={{ color: error ? '#f44336' : undefined }}>
+        {text}
+      </ThemedText>
+      {error && <ThemedText type="code" style={styles.errorHint}>{error}</ThemedText>}
+    </View>
+  );
+
+  const Input = (props: React.ComponentProps<typeof TextInput> & { hasError?: boolean }) => (
+    <TextInput
+      {...props}
+      style={[
+        styles.input,
+        {
+          color: theme.text,
+          backgroundColor: theme.background,
+          borderColor: props.hasError ? '#f44336' : theme.backgroundSelected,
+        },
+        props.style,
+      ]}
+    />
+  );
+
   return (
     <ScrollView
       style={[styles.scrollView, { backgroundColor: theme.background }]}
       contentContainerStyle={styles.scrollContent}
+      keyboardShouldPersistTaps="handled"
     >
       <SafeAreaView style={styles.safeArea}>
         <ThemedView style={styles.brandContainer}>
@@ -186,7 +297,6 @@ export default function RegisterScreen() {
             </Pressable>
           </View>
 
-          {/* Feedback Messages */}
           {errorMsg !== '' && (
             <View style={styles.errorContainer}>
               <ThemedText type="small" style={styles.errorText}>{errorMsg}</ThemedText>
@@ -198,167 +308,227 @@ export default function RegisterScreen() {
             </View>
           )}
 
-          {/* --- REGISTER DONOR MODE --- */}
-          {mode === 'donor' && (
-            <View style={styles.formContainer}>
-              <ThemedText type="subtitle" style={styles.sectionHeader}>Cadastro de Doador</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary" style={styles.sectionDesc}>
-                Estabelecimentos comerciais, feiras ou restaurantes.
-              </ThemedText>
+          <View style={styles.formContainer}>
+            <ThemedText type="subtitle" style={styles.sectionHeader}>
+              {mode === 'donor' ? 'Cadastro de Doador' : 'Cadastro de ONG / Banco'}
+            </ThemedText>
+            <ThemedText type="small" themeColor="textSecondary" style={styles.sectionDesc}>
+              {mode === 'donor'
+                ? 'Estabelecimentos comerciais, feiras ou restaurantes.'
+                : 'Entidades receptoras, abrigos e cozinhas comunitárias.'}
+            </ThemedText>
 
-              <ThemedText type="smallBold" style={styles.inputLabel}>Nome do Estabelecimento / Fantasia</ThemedText>
-              <TextInput
-                style={[styles.input, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-                placeholder="Ex: Supermercado Preço Bom"
-                placeholderTextColor={theme.textSecondary}
-                value={name}
-                onChangeText={setName}
-              />
+            <Label text="Nome / Razão Social" error={fieldErrors.nome} />
+            <Input
+              placeholder={mode === 'donor' ? 'Ex: Supermercado Preço Bom' : 'Ex: Banco de Alimentos Solidário'}
+              placeholderTextColor={theme.textSecondary}
+              value={name}
+              onChangeText={setName}
+              hasError={!!fieldErrors.nome}
+            />
 
-              <ThemedText type="smallBold" style={styles.inputLabel}>E-mail</ThemedText>
-              <TextInput
-                style={[styles.input, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-                placeholder="seu@email.com"
-                placeholderTextColor={theme.textSecondary}
-                value={regEmail}
-                onChangeText={setRegEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
+            <Label text="E-mail" error={fieldErrors.email} />
+            <Input
+              placeholder="seu@email.com"
+              placeholderTextColor={theme.textSecondary}
+              value={regEmail}
+              onChangeText={setRegEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              hasError={!!fieldErrors.email}
+            />
 
-              <ThemedText type="smallBold" style={styles.inputLabel}>CNPJ ou CPF do Doador</ThemedText>
-              <TextInput
-                style={[styles.input, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-                placeholder="Ex: 12.345.678/0001-90"
-                placeholderTextColor={theme.textSecondary}
-                value={cnpjCpf}
-                onChangeText={setCnpjCpf}
-              />
+            <Label
+              text={mode === 'donor' ? 'CPF ou CNPJ' : 'CNPJ da Instituição'}
+              error={fieldErrors.cpf_cnpj}
+            />
+            <Input
+              placeholder={mode === 'donor' ? '000.000.000-00' : '00.000.000/0000-00'}
+              placeholderTextColor={theme.textSecondary}
+              value={cnpjCpf}
+              onChangeText={(v) => setCnpjCpf(maskCpfCnpj(v))}
+              keyboardType="numeric"
+              hasError={!!fieldErrors.cpf_cnpj}
+            />
 
-              <ThemedText type="smallBold" style={styles.inputLabel}>Endereço Completo</ThemedText>
-              <TextInput
-                style={[styles.input, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-                placeholder="Rua, Número, Bairro, Cidade - Estado"
-                placeholderTextColor={theme.textSecondary}
-                value={address}
-                onChangeText={setAddress}
-              />
+            <Label text="Telefone / WhatsApp" error={fieldErrors.telefone} />
+            <Input
+              placeholder="(11) 99999-8888"
+              placeholderTextColor={theme.textSecondary}
+              value={phone}
+              onChangeText={(v) => setPhone(maskPhone(v))}
+              keyboardType="phone-pad"
+              hasError={!!fieldErrors.telefone}
+            />
 
-              <ThemedText type="smallBold" style={styles.inputLabel}>Telefone / WhatsApp</ThemedText>
-              <TextInput
-                style={[styles.input, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-                placeholder="Ex: (11) 99999-8888"
-                placeholderTextColor={theme.textSecondary}
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-              />
+            {/* === ENDEREÇO ESTRUTURADO === */}
+            <View style={styles.sectionDivider} />
+            <ThemedText type="smallBold" style={styles.sectionSubHeader}>
+              📍 Endereço
+            </ThemedText>
 
-              <ThemedText type="smallBold" style={styles.inputLabel}>Definir Senha de Acesso</ThemedText>
-              <TextInput
-                style={[styles.input, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-                placeholder="Mínimo 6 caracteres"
-                placeholderTextColor={theme.textSecondary}
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-              />
-
-              <Pressable
-                style={[styles.submitBtn, loading && { opacity: 0.7 }]}
-                onPress={handleRegisterDonor}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#ffffff" size="small" />
-                ) : (
-                  <ThemedText type="smallBold" style={styles.submitBtnText}>Finalizar Cadastro de Doador</ThemedText>
-                )}
-              </Pressable>
+            <Label text="CEP" error={fieldErrors.cep} />
+            <View style={styles.cepRow}>
+              <View style={{ flex: 1 }}>
+                <Input
+                  placeholder="00000-000"
+                  placeholderTextColor={theme.textSecondary}
+                  value={cep}
+                  onChangeText={(v) => setCep(maskCEP(v))}
+                  keyboardType="numeric"
+                  hasError={!!fieldErrors.cep}
+                />
+              </View>
+              <View style={styles.cepStatusBox}>
+                {cepStatus === 'loading' && <ActivityIndicator color="#3c87f7" size="small" />}
+                {cepStatus === 'found' && <ThemedText style={{ color: '#4caf50', fontSize: 18 }}>✓</ThemedText>}
+                {cepStatus === 'error' && <ThemedText style={{ color: '#f44336', fontSize: 11 }}>não encontrado</ThemedText>}
+              </View>
             </View>
-          )}
 
-          {/* --- REGISTER NGO MODE --- */}
-          {mode === 'ngo' && (
-            <View style={styles.formContainer}>
-              <ThemedText type="subtitle" style={styles.sectionHeader}>Cadastro de ONG / Banco</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary" style={styles.sectionDesc}>
-                Entidades receptoras, abrigos e cozinhas comunitárias.
-              </ThemedText>
+            <Label text="Logradouro (Rua/Av.)" error={fieldErrors.logradouro} />
+            <Input
+              placeholder="Ex: Avenida Paulista"
+              placeholderTextColor={theme.textSecondary}
+              value={logradouro}
+              onChangeText={setLogradouro}
+              hasError={!!fieldErrors.logradouro}
+            />
 
-              <ThemedText type="smallBold" style={styles.inputLabel}>Nome da Entidade</ThemedText>
-              <TextInput
-                style={[styles.input, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-                placeholder="Ex: Banco de Alimentos Solidário"
-                placeholderTextColor={theme.textSecondary}
-                value={name}
-                onChangeText={setName}
-              />
-
-              <ThemedText type="smallBold" style={styles.inputLabel}>E-mail</ThemedText>
-              <TextInput
-                style={[styles.input, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-                placeholder="contato@ong.org.br"
-                placeholderTextColor={theme.textSecondary}
-                value={regEmail}
-                onChangeText={setRegEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-
-              <ThemedText type="smallBold" style={styles.inputLabel}>CNPJ da Instituição</ThemedText>
-              <TextInput
-                style={[styles.input, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-                placeholder="Ex: 55.666.777/0001-88"
-                placeholderTextColor={theme.textSecondary}
-                value={cnpjCpf}
-                onChangeText={setCnpjCpf}
-              />
-
-              <ThemedText type="smallBold" style={styles.inputLabel}>Endereço da Sede</ThemedText>
-              <TextInput
-                style={[styles.input, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-                placeholder="Rua, Número, Bairro, Cidade - Estado"
-                placeholderTextColor={theme.textSecondary}
-                value={address}
-                onChangeText={setAddress}
-              />
-
-              <ThemedText type="smallBold" style={styles.inputLabel}>Capacidade de Atendimento Semanal (Pessoas)</ThemedText>
-              <TextInput
-                style={[styles.input, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-                placeholder="Ex: 350"
-                placeholderTextColor={theme.textSecondary}
-                keyboardType="numeric"
-                value={capacity}
-                onChangeText={setCapacity}
-              />
-
-              <ThemedText type="smallBold" style={styles.inputLabel}>Definir Senha de Acesso</ThemedText>
-              <TextInput
-                style={[styles.input, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-                placeholder="Mínimo 6 caracteres"
-                placeholderTextColor={theme.textSecondary}
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-              />
-
-              <Pressable
-                style={[styles.submitBtn, loading && { opacity: 0.7 }]}
-                onPress={handleRegisterNgo}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#ffffff" size="small" />
-                ) : (
-                  <ThemedText type="smallBold" style={styles.submitBtnText}>Finalizar Cadastro de ONG</ThemedText>
-                )}
-              </Pressable>
+            <View style={styles.row2}>
+              <View style={{ flex: 1 }}>
+                <Label text="Número" error={fieldErrors.numero} />
+                <Input
+                  placeholder="100"
+                  placeholderTextColor={theme.textSecondary}
+                  value={numero}
+                  onChangeText={setNumero}
+                  keyboardType="numeric"
+                  hasError={!!fieldErrors.numero}
+                />
+              </View>
+              <View style={{ flex: 1.5 }}>
+                <Label text="Complemento (opcional)" />
+                <Input
+                  placeholder="Sala 12 / Fundos"
+                  placeholderTextColor={theme.textSecondary}
+                  value={complemento}
+                  onChangeText={setComplemento}
+                />
+              </View>
             </View>
-          )}
 
-          {/* Link to Login */}
+            <Label text="Bairro" error={fieldErrors.bairro} />
+            <Input
+              placeholder="Ex: Bela Vista"
+              placeholderTextColor={theme.textSecondary}
+              value={bairro}
+              onChangeText={setBairro}
+              hasError={!!fieldErrors.bairro}
+            />
+
+            <View style={styles.row2}>
+              <View style={{ flex: 2 }}>
+                <Label text="Cidade" error={fieldErrors.cidade} />
+                <Input
+                  placeholder="São Paulo"
+                  placeholderTextColor={theme.textSecondary}
+                  value={cidade}
+                  onChangeText={setCidade}
+                  hasError={!!fieldErrors.cidade}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Label text="UF" error={fieldErrors.uf} />
+                <Input
+                  placeholder="SP"
+                  placeholderTextColor={theme.textSecondary}
+                  value={uf}
+                  onChangeText={(v) => setUf(v.toUpperCase().slice(0, 2))}
+                  autoCapitalize="characters"
+                  maxLength={2}
+                  hasError={!!fieldErrors.uf}
+                />
+              </View>
+            </View>
+
+            {/* Coordenadas (auto via CEP ou manual via GPS) */}
+            {mode === 'ngo' && (
+              <View style={styles.coordBox}>
+                <View style={styles.coordRow}>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Coordenadas: {coords ? `${coords.lat.toFixed(4)}, ${coords.lon.toFixed(4)}` : '(não definidas)'}
+                  </ThemedText>
+                </View>
+                <Pressable
+                  style={[styles.gpsBtn, gpsLoading && { opacity: 0.7 }]}
+                  onPress={useMyLocation}
+                  disabled={gpsLoading}
+                >
+                  {gpsLoading ? (
+                    <ActivityIndicator color="#3c87f7" size="small" />
+                  ) : (
+                    <>
+                      <SymbolView name="location.fill" size={16} tintColor="#3c87f7" />
+                      <ThemedText type="smallBold" style={{ color: '#3c87f7', marginLeft: 6 }}>
+                        Usar minha localização atual
+                      </ThemedText>
+                    </>
+                  )}
+                </Pressable>
+                {gpsMsg !== '' && (
+                  <ThemedText type="code" style={{ color: theme.textSecondary, marginTop: 4 }}>
+                    {gpsMsg}
+                  </ThemedText>
+                )}
+                {fieldErrors.coords && (
+                  <ThemedText type="code" style={styles.errorHint}>{fieldErrors.coords}</ThemedText>
+                )}
+              </View>
+            )}
+
+            {/* NGO: capacidade */}
+            {mode === 'ngo' && (
+              <>
+                <View style={styles.sectionDivider} />
+                <Label text="Capacidade Semanal de Atendimento (Pessoas)" error={fieldErrors.capacidade} />
+                <Input
+                  placeholder="Ex: 350"
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="numeric"
+                  value={capacity}
+                  onChangeText={setCapacity}
+                  hasError={!!fieldErrors.capacidade}
+                />
+              </>
+            )}
+
+            <View style={styles.sectionDivider} />
+            <Label text="Senha de Acesso" error={fieldErrors.senha} />
+            <Input
+              placeholder="Mínimo 6 caracteres"
+              placeholderTextColor={theme.textSecondary}
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+              hasError={!!fieldErrors.senha}
+            />
+
+            <Pressable
+              style={[styles.submitBtn, loading && { opacity: 0.7 }]}
+              onPress={mode === 'donor' ? handleRegisterDonor : handleRegisterNgo}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#ffffff" size="small" />
+              ) : (
+                <ThemedText type="smallBold" style={styles.submitBtnText}>
+                  {mode === 'donor' ? 'Finalizar Cadastro de Doador' : 'Finalizar Cadastro de ONG'}
+                </ThemedText>
+              )}
+            </Pressable>
+          </View>
+
           <Pressable onPress={() => router.push('/login')} style={styles.loginLink}>
             <ThemedText type="small" themeColor="textSecondary">
               Já tem conta? <ThemedText type="linkPrimary">Entrar</ThemedText>
@@ -371,124 +541,42 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    alignItems: 'center',
-    paddingBottom: Spacing.four,
-  },
-  safeArea: {
-    flex: 1,
-    width: '100%',
-    maxWidth: MaxContentWidth,
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.four,
-  },
-  brandContainer: {
-    alignItems: 'center',
-    marginVertical: Spacing.four,
-  },
+  scrollView: { flex: 1 },
+  scrollContent: { flexGrow: 1, alignItems: 'center', paddingBottom: Spacing.four },
+  safeArea: { flex: 1, width: '100%', maxWidth: MaxContentWidth, paddingHorizontal: Spacing.three, paddingTop: Spacing.four },
+  brandContainer: { alignItems: 'center', marginVertical: Spacing.four },
   logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#3c87f722',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing.two,
+    width: 80, height: 80, borderRadius: 40, backgroundColor: '#3c87f722',
+    justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.two,
   },
-  brandTitle: {
-    fontSize: 32,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-  },
-  brandSubtitle: {
-    textAlign: 'center',
-    marginTop: Spacing.one,
-    paddingHorizontal: Spacing.four,
-  },
+  brandTitle: { fontSize: 32, fontWeight: '800', letterSpacing: -0.5 },
+  brandSubtitle: { textAlign: 'center', marginTop: Spacing.one, paddingHorizontal: Spacing.four },
   containerCard: {
-    borderRadius: Spacing.four,
-    padding: Spacing.four,
-    elevation: 3,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(150, 150, 150, 0.08)',
+    borderRadius: Spacing.four, padding: Spacing.four, elevation: 3,
+    shadowColor: '#000000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8,
+    borderWidth: 1, borderColor: 'rgba(150, 150, 150, 0.08)',
   },
-  tabHeaders: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(150, 150, 150, 0.15)',
-    marginBottom: Spacing.four,
-  },
-  tabHeaderBtn: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: Spacing.three,
-  },
-  errorContainer: {
-    backgroundColor: '#ffebee',
-    padding: Spacing.three,
-    borderRadius: Spacing.two,
-    marginBottom: Spacing.four,
-    borderLeftWidth: 4,
-    borderLeftColor: '#f44336',
-  },
-  errorText: {
-    color: '#c62828',
-  },
-  successContainer: {
-    backgroundColor: '#e8f5e9',
-    padding: Spacing.three,
-    borderRadius: Spacing.two,
-    marginBottom: Spacing.four,
-    borderLeftWidth: 4,
-    borderLeftColor: '#4caf50',
-  },
-  successText: {
-    color: '#2e7d32',
-  },
-  formContainer: {
-    gap: Spacing.two,
-  },
-  sectionHeader: {
-    fontSize: 22,
-    fontWeight: '700',
-  },
-  sectionDesc: {
-    marginBottom: Spacing.two,
-  },
-  inputLabel: {
-    fontSize: 13,
-    marginTop: Spacing.two,
-  },
-  input: {
-    height: 48,
-    borderWidth: 1,
-    borderRadius: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    fontSize: 15,
-  },
-  submitBtn: {
-    height: 50,
-    backgroundColor: '#3c87f7',
-    borderRadius: Spacing.two,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: Spacing.three,
-  },
-  submitBtnText: {
-    color: '#ffffff',
-    fontSize: 16,
-  },
-  loginLink: {
-    alignSelf: 'center',
-    marginTop: Spacing.three,
-    padding: Spacing.two,
-  },
+  tabHeaders: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: 'rgba(150, 150, 150, 0.15)', marginBottom: Spacing.four },
+  tabHeaderBtn: { flex: 1, alignItems: 'center', paddingVertical: Spacing.three },
+  errorContainer: { backgroundColor: '#ffebee', padding: Spacing.three, borderRadius: Spacing.two, marginBottom: Spacing.four, borderLeftWidth: 4, borderLeftColor: '#f44336' },
+  errorText: { color: '#c62828' },
+  successContainer: { backgroundColor: '#e8f5e9', padding: Spacing.three, borderRadius: Spacing.two, marginBottom: Spacing.four, borderLeftWidth: 4, borderLeftColor: '#4caf50' },
+  successText: { color: '#2e7d32' },
+  formContainer: { gap: Spacing.two },
+  sectionHeader: { fontSize: 22, fontWeight: '700' },
+  sectionSubHeader: { fontSize: 15, fontWeight: '700', marginTop: Spacing.two },
+  sectionDesc: { marginBottom: Spacing.two },
+  sectionDivider: { height: 1, backgroundColor: 'rgba(150, 150, 150, 0.15)', marginVertical: Spacing.three },
+  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: Spacing.two },
+  errorHint: { fontSize: 10, color: '#f44336' },
+  input: { height: 48, borderWidth: 1, borderRadius: Spacing.two, paddingHorizontal: Spacing.three, fontSize: 15 },
+  row2: { flexDirection: 'row', gap: Spacing.two },
+  cepRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  cepStatusBox: { width: 90, alignItems: 'center', justifyContent: 'center' },
+  coordBox: { backgroundColor: 'rgba(60, 135, 247, 0.06)', borderRadius: Spacing.two, padding: Spacing.three, marginTop: Spacing.two },
+  coordRow: { marginBottom: Spacing.two },
+  gpsBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: Spacing.two, borderWidth: 1, borderColor: '#3c87f7' },
+  submitBtn: { height: 50, backgroundColor: '#3c87f7', borderRadius: Spacing.two, justifyContent: 'center', alignItems: 'center', marginTop: Spacing.three },
+  submitBtnText: { color: '#ffffff', fontSize: 16 },
+  loginLink: { alignSelf: 'center', marginTop: Spacing.three, padding: Spacing.two },
 });

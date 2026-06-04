@@ -100,3 +100,17 @@ async def login_endpoint(payload: LoginRequest, db: AsyncSession = Depends(async
 @router.get("/me", response_model=UsuarioResponse)
 async def me_endpoint(current_user: Usuario = Depends(get_current_user_with_ong)):
     return current_user
+
+
+@router.get("/cep/{cep}")
+async def lookup_cep(cep: str):
+    """Busca dados de um CEP brasileiro via ViaCEP + Nominatim (lat/long).
+    Usado pelo frontend no cadastro para auto-preencher endereço."""
+    from matching.geocoding import fetch_cep
+    result = await fetch_cep(cep)
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="CEP nao encontrado ou invalido",
+        )
+    return result
