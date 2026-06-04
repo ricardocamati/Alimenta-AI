@@ -67,7 +67,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function NgoScreen() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { data: dashData, isLoading: loadingDash, error: dashError } = useDashboard();
   const { doacoes, isLoading, error, refresh, atualizarStatus } = useDoacoesOng();
   const { historico, isLoading: isLoadingHist, error: errorHist, refresh: refreshHist, registrar } = useHistorico();

@@ -8,6 +8,7 @@ export async function listarHistorico(): Promise<HistoricoAtendimentoDTO[]> {
 export async function registrarAtendimento(data: {
   semana: string;
   quantidade_atendida: number;
+  ong_id: number;
 }): Promise<HistoricoAtendimentoDTO> {
   return api.post('/historico/', data) as Promise<HistoricoAtendimentoDTO>;
 }

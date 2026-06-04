@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import * as historicoService from '@/services/historicoService';
 import { handleApiError } from '@/utils/errorHandler';
+import { authStore } from '@/store/authStore';
 import type { HistoricoAtendimentoDTO } from '@/types';
 
 export function useHistorico() {
@@ -29,7 +30,14 @@ export function useHistorico() {
     setIsLoading(true);
     setError(null);
     try {
-      const novo = await historicoService.registrarAtendimento(data);
+      const ongId = authStore.getState().user?.ong?.id;
+      if (!ongId) {
+        throw new Error('Usuário não vinculado a uma ONG');
+      }
+      const novo = await historicoService.registrarAtendimento({
+        ...data,
+        ong_id: ongId,
+      });
       setHistorico((prev) => [novo, ...prev].sort((a, b) => b.semana.localeCompare(a.semana)));
       return novo;
     } catch (e: any) {
