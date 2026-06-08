@@ -1,6 +1,8 @@
 import logging
+import uuid
+from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth.router import get_current_user, get_current_user_with_ong, require_ong
@@ -39,6 +41,20 @@ async def trigger_calcular_matching(doacao_id: int):
             await calcular_matching(doacao_id, db)
         except Exception:
             logger.exception("BackgroundTask: calcular_matching(%s) falhou", doacao_id)
+
+
+UPLOAD_DIR = Path(__file__).resolve().parent.parent / "uploads" / "fotos_doacoes"
+
+
+@router.post("/upload-foto")
+async def upload_foto(file: UploadFile):
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    ext = Path(file.filename).suffix if file.filename else ".jpg"
+    filename = f"{uuid.uuid4().hex}{ext}"
+    filepath = UPLOAD_DIR / filename
+    content = await file.read()
+    filepath.write_bytes(content)
+    return {"url": f"http://127.0.0.1:8000/uploads/fotos_doacoes/{filename}"}
 
 
 @router.post(

@@ -6,6 +6,7 @@ import {
   View, 
   ActivityIndicator,
   TextInput,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
@@ -339,7 +340,11 @@ export default function NgoScreen() {
               >
                 <View style={styles.matchCardRow}>
                   <View style={[styles.emojiCircle, { backgroundColor: photo.color + '22' }]}>
-                    <ThemedText style={{ fontSize: 28 }}>{photo.emoji}</ThemedText>
+                    {doacao.foto_url && doacao.foto_url.startsWith('http') ? (
+                      <Image source={{ uri: doacao.foto_url }} style={{ width: 50, height: 50, borderRadius: 25 }} resizeMode="cover" />
+                    ) : (
+                      <ThemedText style={{ fontSize: 28 }}>{photo.emoji}</ThemedText>
+                    )}
                   </View>
                   <View style={{ flex: 1, gap: 3 }}>
                     <View style={styles.matchHeader}>

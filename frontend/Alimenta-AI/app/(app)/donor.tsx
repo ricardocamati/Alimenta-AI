@@ -19,6 +19,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/hooks/useAuth';
 import { useDoacao } from '@/hooks/useDoacao';
+import api from '@/services/api';
 import { useDashboard } from '@/hooks/useDashboard';
 import { useStore } from '@/hooks/use-store';
 import { UrgencyBadge } from '@/components/urgency-badge';
@@ -82,6 +83,7 @@ export default function DonorScreen() {
   });
   const [storageConditions, setStorageConditions] = useState('Temperatura Ambiente');
   const [photoAsset, setPhotoAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [fotoUrl, setFotoUrl] = useState<string | null>(null);
   const [loadingPhoto, setLoadingPhoto] = useState(false);
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
@@ -100,6 +102,19 @@ export default function DonorScreen() {
   const donorNotifications = store.notifications.filter(n => n.userId === activeDonorId);
   const hasLocation = latitude !== null && longitude !== null;
 
+  const uploadFoto = async (photoAsset: ImagePicker.ImagePickerAsset): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', {
+      uri: photoAsset.uri,
+      type: 'image/jpeg',
+      name: 'photo.jpg',
+    } as any);
+    const response = await api.post('/doacoes/upload-foto', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.url;
+  };
+
   const handleNextStep1 = () => {
     if (!foodName || !quantity) {
       setErrorMsg('Preencha o nome do alimento e a quantidade.');
@@ -109,7 +124,7 @@ export default function DonorScreen() {
     setFormStep(2);
   };
 
-  const handleNextStep2 = () => {
+  const handleNextStep2 = async () => {
     const today = new Date();
     today.setHours(0,0,0,0);
     const expiry = new Date(expiryDate);
@@ -124,7 +139,16 @@ export default function DonorScreen() {
       return;
     }
     setErrorMsg('');
-    setFormStep(3);
+    setLoading(true);
+    try {
+      const url = await uploadFoto(photoAsset);
+      setFotoUrl(url);
+      setLoading(false);
+      setFormStep(3);
+    } catch {
+      setLoading(false);
+      setErrorMsg('Erro ao fazer upload da foto. Tente novamente.');
+    }
   };
 
   const handlePrevStep = () => {
@@ -251,7 +275,7 @@ export default function DonorScreen() {
         categoria: category === 'Perecível' ? 'perecivel_alto' : 'perecivel_baixo',
         quantidade: parseFloat(quantity) || 0,
         data_validade: expiryDate,
-        foto_url: photoAsset.uri,
+        foto_url: fotoUrl || '',
         latitude: capturedLatitude,
         longitude: capturedLongitude,
       });
@@ -265,6 +289,7 @@ export default function DonorScreen() {
       setQuantity('');
       setStorageConditions('Temperatura Ambiente');
       setPhotoAsset(null);
+      setFotoUrl(null);
       setLatitude(null);
       setLongitude(null);
       setLocationLabel('Localização ainda não capturada');
