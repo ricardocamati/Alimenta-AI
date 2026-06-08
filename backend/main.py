@@ -22,8 +22,13 @@ app = FastAPI(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from database.connection import Base, async_engine
+    from database import models  # noqa: F401  garante registro das classes no metadata
     from ml.predictor import init_predictor
     from ml.demand_predictor import init_demand_predictor
+
+    async with async_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
     init_predictor()
     init_demand_predictor()
