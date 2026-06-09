@@ -122,6 +122,7 @@ export interface DashboardONGDTO {
     status: StatusDoacao;
     criado_em: string;
   }[];
+  historico_semanal?: { semana: string; quantidade_atendida: number }[];
 }
 
 export interface DashboardAdminDTO {

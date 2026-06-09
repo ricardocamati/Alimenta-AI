@@ -11,6 +11,7 @@ from dashboard.schemas import (
     DashboardDoador,
     DashboardONG,
     DoacaoResumo,
+    SemanaHistorico,
     TopDoador,
     TopOng,
 )
@@ -199,6 +200,19 @@ async def get_ong_dashboard(db: AsyncSession, user: Usuario) -> DashboardONG:
         (Doacao.ong_matched_id == ong_id) & (Doacao.status == StatusDoacao.confirmado),
     )
 
+    # Busca histórico semanal (últimas 12 semanas) para o gráfico de linha
+    from database.models import HistoricoAtendimento
+    hist_semanal_result = await db.execute(
+        select(HistoricoAtendimento.semana, HistoricoAtendimento.quantidade_atendida)
+        .where(HistoricoAtendimento.ong_id == ong_id)
+        .order_by(HistoricoAtendimento.semana.asc())
+        .limit(12)
+    )
+    historico_semanal = [
+        {"semana": str(r[0]), "quantidade_atendida": r[1]}
+        for r in hist_semanal_result.all()
+    ]
+
     return DashboardONG(
         total_doacoes_recebidas=recebidas,
         total_kg_recebidos=total_kg_recebidos,
@@ -207,6 +221,7 @@ async def get_ong_dashboard(db: AsyncSession, user: Usuario) -> DashboardONG:
         doacoes_pendentes=pendentes,
         distribuicao_categorias=distribuicao_categorias,
         ultimas_doacoes=ultimas,
+        historico_semanal=historico_semanal,
     )
 
 
