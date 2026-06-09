@@ -1,11 +1,11 @@
 import logging
-from datetime import date
+from datetime import date, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from database.models import Doacao, LogAFD, ONG, StatusDoacao, Urgencia, Usuario
+from database.models import Doacao, LogAFD, ONG, StatusDoacao, Urgencia, Usuario, HistoricoAtendimento
 from doacoes.schemas import DoacaoCreate
 from ml.predictor import UrgencyPredictor
 
@@ -204,6 +204,11 @@ async def atualizar_status_doacao(
     )
     db.add(log)
     await db.commit()
+
+    # Se status confirmado, atualizar historico_semanal
+    if status_enum == StatusDoacao.confirmado:
+        await _atualizar_historico_confirmacao(db, doacao)
+
     # Recarrega com eager load para serializacao Pydantic
     result2 = await db.execute(
         select(Doacao)
@@ -211,3 +216,43 @@ async def atualizar_status_doacao(
         .where(Doacao.id == doacao_id)
     )
     return result2.scalar_one_or_none()
+
+
+async def _atualizar_historico_confirmacao(db: AsyncSession, doacao: Doacao) -> None:
+    """Soma a quantidade da doacao confirmada no historico da semana atual."""
+    # Pegar segunda-feira desta semana (ISO week)
+    hoje = date.today()
+    semana = hoje - timedelta(days=hoje.weekday())
+    ong_id = doacao.ong_matched_id
+    if not ong_id:
+        logger.warning("Doacao %s confirmada mas sem ONG matched", doacao.id)
+        return
+
+    # Procura registro existente para esta semana + ONG
+    result = await db.execute(
+        select(HistoricoAtendimento)
+        .where(
+            HistoricoAtendimento.ong_id == ong_id,
+            HistoricoAtendimento.semana == semana,
+        )
+    )
+    registro = result.scalar_one_or_none()
+
+    if registro:
+        registro.quantidade_atendida += doacao.quantidade
+        logger.info(
+            "Historico ONG %s semana %s: +%s kg (total=%s)",
+            ong_id, semana, doacao.quantidade, registro.quantidade_atendida,
+        )
+    else:
+        novo = HistoricoAtendimento(
+            ong_id=ong_id,
+            semana=semana,
+            quantidade_atendida=doacao.quantidade,
+        )
+        db.add(novo)
+        logger.info(
+            "Historico ONG %s semana %s: criado com %s kg",
+            ong_id, semana, doacao.quantidade,
+        )
+    await db.commit()
