@@ -126,6 +126,34 @@ export default function ModalScreen() {
     }
   }
 
+  async function pickPhotoFromLibrary() {
+    try {
+      setLoadingPhoto(true);
+      setErrorMsg('');
+
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        setErrorMsg('Permissão de galeria negada. Habilite o acesso às fotos para continuar.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaType.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.85,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        setPhotoAsset(result.assets[0]);
+      }
+    } catch {
+      Alert.alert('Erro na galeria', 'Não foi possível selecionar uma imagem neste dispositivo.');
+    } finally {
+      setLoadingPhoto(false);
+    }
+  }
+
   async function captureLocation() {
     try {
       setLoadingLocation(true);
@@ -356,16 +384,22 @@ export default function ModalScreen() {
                 <ThemedText type="small" themeColor="textSecondary">
                   Capture a imagem da doação usando a câmera do dispositivo.
                 </ThemedText>
-                <Pressable style={styles.secondaryButton} onPress={capturePhoto} disabled={loadingPhoto}>
-                  {loadingPhoto ? (
-                    <ActivityIndicator color="#3c87f7" size="small" />
-                  ) : (
-                    <>
-                      <SymbolView name="camera.fill" size={16} tintColor="#3c87f7" />
-                      <ThemedText type="smallBold" style={styles.secondaryButtonText}>Abrir câmera</ThemedText>
-                    </>
-                  )}
-                </Pressable>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <Pressable style={styles.secondaryButton} onPress={capturePhoto} disabled={loadingPhoto}>
+                    {loadingPhoto ? (
+                      <ActivityIndicator color="#3c87f7" size="small" />
+                    ) : (
+                      <>
+                        <SymbolView name="camera.fill" size={16} tintColor="#3c87f7" />
+                        <ThemedText type="smallBold" style={styles.secondaryButtonText}>Abrir câmera</ThemedText>
+                      </>
+                    )}
+                  </Pressable>
+                  <Pressable style={styles.galleryBtn} onPress={pickPhotoFromLibrary} disabled={loadingPhoto}>
+                    <SymbolView name="photo.fill" size={16} tintColor="#3c87f7" />
+                    <ThemedText type="smallBold" style={styles.galleryBtnText}>Galeria</ThemedText>
+                  </Pressable>
+                </View>
               </View>
             </View>
 
@@ -642,6 +676,22 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     color: '#3c87f7',
+  },
+  galleryBtn: {
+    minHeight: 50,
+    borderRadius: Spacing.two,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#3c87f7',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.three,
+  },
+  galleryBtnText: {
+    color: '#3c87f7',
+    fontSize: 12,
   },
   buttonFlex: {
     flex: 1,
