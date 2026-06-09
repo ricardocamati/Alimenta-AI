@@ -184,11 +184,9 @@ export default function ModalScreen() {
 
     try {
       const formData = new FormData();
-      formData.append('file', {
-        uri: photoAsset.uri,
-        type: 'image/jpeg',
-        name: 'doacao.jpg',
-      } as any);
+      // Converte URI para Blob (funciona em web e mobile)
+      const blob = await (await fetch(photoAsset.uri)).blob();
+      formData.append('file', blob, 'doacao.jpg');
 
       const api = (await import('@/services/api')).default;
       const uploadRes = await api.post<{ url: string }>(
