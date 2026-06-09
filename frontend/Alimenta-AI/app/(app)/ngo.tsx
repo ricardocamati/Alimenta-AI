@@ -19,6 +19,7 @@ import { useDoacoesOng } from '@/hooks/useDoacoesOng';
 import { useHistorico } from '@/hooks/useHistorico';
 import { useNgoPreferences } from '@/hooks/useNgoPreferences';
 import { ErrorMessage } from '@/components/ErrorMessage';
+import { LineChart } from '@/components/LineChart';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing, MaxContentWidth, BottomTabInset } from '@/constants/theme';
 import type { DoacaoDTO } from '@/types';
@@ -173,69 +174,27 @@ export default function NgoScreen() {
           </View>
         )}
 
-                {/* CHART: Demanda vs Prevista */}
-        {dash?.demanda_prevista_proxima_semana && (
+                {/* CHART: Demanda vs Histórico (LINHA) */}
+        {dash?.historico_semanal && dash.historico_semanal.length > 0 && (
           <ThemedView type="backgroundElement" style={styles.chartContainer}>
             <View style={styles.chartHeader}>
-              <SymbolView name="chart.bar.xaxis" size={18} tintColor="#2196f3" />
+              <SymbolView name="chart.line.uptrend.xyaxis" size={18} tintColor="#2196f3" />
               <ThemedText type="smallBold" style={{ marginLeft: 8 }}>
                 Demanda Prevista vs Histórico
               </ThemedText>
             </View>
-            <View style={styles.chartBody}>
-              <View style={styles.chartYAxis}>
-                <ThemedText type="code" style={styles.yAxisLabel}>{Math.round((dash?.demanda_prevista_proxima_semana || 0) * 1.3)}</ThemedText>
-                <ThemedText type="code" style={styles.yAxisLabel}>{Math.round((dash?.demanda_prevista_proxima_semana || 0) * 0.8)}</ThemedText>
-                <ThemedText type="code" style={styles.yAxisLabel}>{Math.round((dash?.demanda_prevista_proxima_semana || 0) * 0.4)}</ThemedText>
-                <ThemedText type="code" style={styles.yAxisLabel}>0</ThemedText>
-              </View>
-              <View style={styles.chartBarsArea}>
-                {/* Histórico real */}
-                <View style={styles.chartBarCol}>
-                  <View style={styles.barOuter}>
-                    <View 
-                      style={[
-                        styles.barInner, 
-                        styles.barActual, 
-                        { 
-                          height: `${Math.min(
-                            ((dash?.total_kg_recebidos || 0) / ((dash?.demanda_prevista_proxima_semana || 1) * 1.3)) * 100, 
-                            100
-                          )}%` 
-                        }
-                      ]} 
-                    />
-                    <ThemedText type="code" style={styles.barValueLabel}>
-                      {dash?.total_kg_recebidos ?? 0} kg
-                    </ThemedText>
-                  </View>
-                  <ThemedText type="code" style={styles.barLabel}>Recebido</ThemedText>
-                </View>
-                {/* Demanda prevista */}
-                <View style={styles.chartBarCol}>
-                  <View style={styles.barOuter}>
-                    <View 
-                      style={[
-                        styles.barInner, 
-                        styles.barPrediction, 
-                        { height: `${Math.min(((dash?.demanda_prevista_proxima_semana || 0) / ((dash?.demanda_prevista_proxima_semana || 1) * 1.3)) * 100, 100)}%` }
-                      ]} 
-                    />
-                    <ThemedText type="code" style={styles.barValueLabel}>
-                      {Math.round(dash?.demanda_prevista_proxima_semana ?? 0)} kg
-                    </ThemedText>
-                  </View>
-                  <ThemedText type="code" style={styles.barLabel}>Previsto</ThemedText>
-                </View>
-              </View>
-            </View>
+            <LineChart
+              data={dash.historico_semanal}
+              demandaPrevista={dash.demanda_prevista_proxima_semana || 0}
+              theme={theme}
+            />
             <View style={styles.chartLegend}>
               <View style={styles.legendItem}>
                 <View style={[styles.legendBox, { backgroundColor: '#3c87f7' }]} />
                 <ThemedText type="code" style={{ fontSize: 10 }}>Atendimento Real (kg)</ThemedText>
               </View>
               <View style={styles.legendItem}>
-                <View style={[styles.legendBox, { backgroundColor: '#9c27b0' }]} />
+                <View style={[styles.legendBox, { backgroundColor: '#e91e63', borderRadius: 6 }]} />
                 <ThemedText type="code" style={{ fontSize: 10 }}>Demanda Prevista (kg)</ThemedText>
               </View>
             </View>
