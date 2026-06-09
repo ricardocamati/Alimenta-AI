@@ -184,7 +184,6 @@ export default function ModalScreen() {
 
     try {
       const formData = new FormData();
-      // Converte URI para Blob (funciona em web e mobile)
       const blob = await (await fetch(photoAsset.uri)).blob();
       formData.append('file', blob, 'doacao.jpg');
 
@@ -192,7 +191,6 @@ export default function ModalScreen() {
       const uploadRes = await api.post<{ url: string }>(
         '/doacoes/upload-foto',
         formData,
-        { headers: { 'Content-Type': 'multipart/form-data' } }
       );
 
       const categoriaBackend = category === 'Perecível' ? foodType : 'Não-perecíveis';

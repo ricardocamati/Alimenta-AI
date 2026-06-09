@@ -103,12 +103,9 @@ export default function DonorScreen() {
 
   const uploadFoto = async (photoAsset: ImagePicker.ImagePickerAsset): Promise<string> => {
     const formData = new FormData();
-    // Converte URI para Blob (funciona em web e mobile)
     const blob = await (await fetch(photoAsset.uri)).blob();
     formData.append('file', blob, 'photo.jpg');
-    const response = await api.post('/doacoes/upload-foto', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const response = await api.post('/doacoes/upload-foto', formData);
     return response.data.url;
   };
 
