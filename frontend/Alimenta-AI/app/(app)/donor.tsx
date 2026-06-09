@@ -192,6 +192,21 @@ export default function DonorScreen() {
   };
 
   const pickPhotoFromLibrary = async () => {
+    if (Platform.OS === 'web') {
+      // Fallback nativo HTML file picker para web
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = async () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        const uri = URL.createObjectURL(file);
+        setPhotoAsset({ uri, width: 0, height: 0, type: 'image' } as any);
+      };
+      input.click();
+      return;
+    }
+
     try {
       setLoadingPhoto(true);
       setErrorMsg('');

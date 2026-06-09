@@ -113,9 +113,20 @@ async def login_endpoint(payload: LoginRequest, db: AsyncSession = Depends(async
 @router.get("/me", response_model=UsuarioResponse)
 async def me_endpoint(current_user: Usuario = Depends(get_current_user_with_ong)):
     from config import settings
-    response = current_user.model_dump()
-    response["is_test_mode"] = settings.TEST_MODE
-    return response
+    return UsuarioResponse.model_validate(
+        {
+            "id": current_user.id,
+            "nome": current_user.nome,
+            "email": current_user.email,
+            "tipo": current_user.tipo,
+            "cpf_cnpj": current_user.cpf_cnpj,
+            "endereco": current_user.endereco,
+            "telefone": current_user.telefone,
+            "criado_em": current_user.criado_em,
+            "ong": current_user.ong,
+            "is_test_mode": settings.TEST_MODE,
+        }
+    )
 
 
 @router.get("/cep/{cep}")
