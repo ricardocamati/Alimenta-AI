@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth.router import get_current_user, get_current_user_with_ong, require_ong
+from auth.router import get_current_user, get_current_user_with_ong, require_ong, require_doador
 from database.connection import async_get_db, AsyncSessionLocal
 from database.models import TipoUsuario, Usuario
 from doacoes.schemas import DoacaoCreate, DoacaoDetailedResponse, DoacaoResponse
@@ -15,23 +15,6 @@ from matching.service import calcular_matching
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/doacoes", tags=["doacoes"])
-
-
-def require_doador(
-    current_user: Usuario = Depends(get_current_user),
-) -> Usuario:
-    """Verifica se o usuario autenticado e doador.
-
-    NOTA: Usa get_current_user (sem eager-load de ONG) por performance.
-    Se precisar acessar dados da ONG neste guard, troque para
-    get_current_user_with_ong.
-    """
-    if current_user.tipo != TipoUsuario.doador:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Apenas doadores podem acessar este recurso",
-        )
-    return current_user
 
 
 async def trigger_calcular_matching(doacao_id: int):

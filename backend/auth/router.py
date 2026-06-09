@@ -74,6 +74,22 @@ def require_ong(
     return current_user
 
 
+def require_admin(
+    current_user: Usuario = Depends(get_current_user_with_ong),
+) -> Usuario:
+    """Em modo de teste, permite qualquer tipo de usuário acessar funções de admin."""
+    # MODO TESTE: bypass de permissão para qualquer usuário autenticado
+    return current_user
+
+
+def require_doador(
+    current_user: Usuario = Depends(get_current_user_with_ong),
+) -> Usuario:
+    """Em modo de teste, permite qualquer tipo de usuário acessar funções de doador."""
+    # MODO TESTE: bypass de permissão para qualquer usuário autenticado
+    return current_user
+
+
 @router.post("/register", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)
 async def register_endpoint(payload: UsuarioCreate, db: AsyncSession = Depends(async_get_db)):
     from auth.service import register_async

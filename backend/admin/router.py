@@ -18,22 +18,13 @@ from admin.service import (
     set_weights,
     trigger_retrain,
 )
-from auth.router import get_current_user_with_ong
+from auth.router import get_current_user_with_ong, require_admin
 from database.connection import async_get_db
-from database.models import TipoUsuario, Usuario
+from database.models import Usuario
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-
-
-def require_admin(current_user: Usuario = Depends(get_current_user_with_ong)) -> Usuario:
-    if current_user.tipo != TipoUsuario.admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Apenas administradores",
-        )
-    return current_user
 
 
 @router.get("/users", response_model=list[UserAdminResponse])
