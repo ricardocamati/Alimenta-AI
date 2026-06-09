@@ -2,7 +2,7 @@ import logging
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth.router import get_current_user, get_current_user_with_ong, require_ong, require_doador
@@ -30,14 +30,15 @@ UPLOAD_DIR = Path(__file__).resolve().parent.parent / "uploads" / "fotos_doacoes
 
 
 @router.post("/upload-foto")
-async def upload_foto(file: UploadFile):
+async def upload_foto(request: Request, file: UploadFile):
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     ext = Path(file.filename).suffix if file.filename else ".jpg"
     filename = f"{uuid.uuid4().hex}{ext}"
     filepath = UPLOAD_DIR / filename
     content = await file.read()
     filepath.write_bytes(content)
-    return {"url": f"http://127.0.0.1:8000/uploads/fotos_doacoes/{filename}"}
+    base_url = str(request.base_url).rstrip('/')
+    return {"url": f"{base_url}/uploads/fotos_doacoes/{filename}"}
 
 
 @router.post(
