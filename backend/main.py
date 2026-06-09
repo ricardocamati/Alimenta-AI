@@ -19,8 +19,8 @@ from ongs import router as ongs_router
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="Alimenta.AI",
-    description="Sistema preditivo de redistribuicao inteligente de alimentos com Machine Learning",
+    title="Alimenta-IA",
+    description="Sistema de inteligencia artificial para redistribuicao inteligente de alimentos",
     version="0.1.0",
 )
 
@@ -183,7 +183,7 @@ app.include_router(admin_router)
 
 @app.get("/")
 async def root():
-    return {"message": "Alimenta.AI API"}
+    return {"message": "Alimenta-IA API"}
 
 
 @app.get("/health")

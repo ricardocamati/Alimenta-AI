@@ -104,6 +104,7 @@ export default function AlertsScreen() {
   const [scanning, setScanning] = useState(false);
 
   const userType = user?.tipo;
+  const isTestMode = user?.is_test_mode;
 
   const { notifs, isLoading: loadingNotifs, markRead, markAllRead, triggerExpiry, refresh } = useNotifications({
     autoRefresh: true,
@@ -114,7 +115,7 @@ export default function AlertsScreen() {
   const { doacoes: doacoesOng } = useDoacoesOng();
 
   const doacoesParaAlerta: ExpiryDonation[] = useMemo(() => {
-    if (userType === 'ong') {
+    if (userType === 'ong' || isTestMode) {
       return (doacoesOng as DoacaoDTO[]).map(normalizeExpiry);
     }
     if (userType === 'doador') {

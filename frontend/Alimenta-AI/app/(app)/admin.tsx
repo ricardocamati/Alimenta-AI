@@ -45,7 +45,7 @@ export default function AdminScreen() {
     }
   }, [weights]);
 
-  const isAdmin = user && user.tipo === 'admin';
+  const isAdmin = user && (user.tipo === 'admin' || user?.is_test_mode);
   const dash = dashData && 'perfil' in dashData && dashData.perfil === 'admin' ? dashData : null;
 
   const handleSaveWeights = async () => {

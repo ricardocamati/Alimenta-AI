@@ -89,6 +89,7 @@ class UsuarioResponse(BaseModel):
     telefone: str | None = None
     criado_em: datetime
     ong: ONGResponse | None = None
+    is_test_mode: bool | None = None
 
     model_config = {"from_attributes": True}
 

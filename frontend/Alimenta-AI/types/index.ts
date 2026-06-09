@@ -46,6 +46,7 @@ export interface UserDTO {
   telefone: string | null;
   criado_em: string;
   ong: ONGDTO | null;
+  is_test_mode?: boolean;
 }
 
 export interface CreateDoacaoDTO {

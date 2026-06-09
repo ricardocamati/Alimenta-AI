@@ -112,7 +112,10 @@ async def login_endpoint(payload: LoginRequest, db: AsyncSession = Depends(async
 
 @router.get("/me", response_model=UsuarioResponse)
 async def me_endpoint(current_user: Usuario = Depends(get_current_user_with_ong)):
-    return current_user
+    from config import settings
+    response = current_user.model_dump()
+    response["is_test_mode"] = settings.TEST_MODE
+    return response
 
 
 @router.get("/cep/{cep}")

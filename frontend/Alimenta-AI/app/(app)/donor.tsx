@@ -53,7 +53,7 @@ export default function DonorScreen() {
   const { notifs: donorNotifications, markRead: markDonorNotifRead } = useNotifications({ autoRefresh: true, intervalMs: 30000 });
   const theme = useTheme();
 
-  const isDonorLoggedIn = !!(user && user.tipo === 'doador');
+  const isDonorLoggedIn = !!(user && (user.tipo === 'doador' || user?.is_test_mode));
   const activeDonorId = isDonorLoggedIn ? String(user!.id) : '';
   const activeDonorName = isDonorLoggedIn ? user!.nome : (user?.nome || 'Visitante');
 
