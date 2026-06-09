@@ -8,6 +8,7 @@ import {
   StyleSheet,
   TextInput,
   View,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -184,15 +185,23 @@ export default function ModalScreen() {
 
     try {
       const formData = new FormData();
-      const blob = await (await fetch(photoAsset.uri)).blob();
-      formData.append('file', blob, 'doacao.jpg');
+      if (Platform.OS === 'web') {
+        const blob = await (await fetch(photoAsset.uri)).blob();
+        formData.append('file', blob, 'doacao.jpg');
+      } else {
+        formData.append('file', {
+          uri: photoAsset.uri,
+          type: 'image/jpeg',
+          name: 'doacao.jpg',
+        } as any);
+      }
 
       const api = (await import('@/services/api')).default;
-      const uploadRes = await api.post<{ url: string }>(
+      const uploadRes = await api.post<
+{ url: string }>(
         '/doacoes/upload-foto',
         formData,
       );
-
       const categoriaBackend = category === 'Perecível' ? foodType : 'Não-perecíveis';
 
       await createDoacao({

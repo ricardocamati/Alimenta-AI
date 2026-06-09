@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  StyleSheet, 
-  TextInput, 
-  Pressable, 
-  ScrollView, 
-  View, 
+import {
+  StyleSheet,
+  TextInput,
+  Pressable,
+  ScrollView,
+  View,
   Image,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
@@ -103,10 +104,20 @@ export default function DonorScreen() {
 
   const uploadFoto = async (photoAsset: ImagePicker.ImagePickerAsset): Promise<string> => {
     const formData = new FormData();
-    const blob = await (await fetch(photoAsset.uri)).blob();
-    formData.append('file', blob, 'photo.jpg');
+    if (Platform.OS === 'web') {
+      // Web: fetch(uri).blob() necessário para criar File real
+      const blob = await (await fetch(photoAsset.uri)).blob();
+      formData.append('file', blob, 'photo.jpg');
+    } else {
+      // Mobile: React Native usa objeto {uri, type, name}
+      formData.append('file', {
+        uri: photoAsset.uri,
+        type: 'image/jpeg',
+        name: 'photo.jpg',
+      } as any);
+    }
     const response = await api.post('/doacoes/upload-foto', formData);
-    return response.data.url;
+    return response.url;
   };
 
   const handleNextStep1 = () => {
