@@ -150,7 +150,8 @@ export default function DonorScreen() {
       setFotoUrl(url);
       setLoading(false);
       setFormStep(3);
-    } catch {
+    } catch (err: any) {
+      console.error('Erro upload foto:', err?.message || err);
       setLoading(false);
       setErrorMsg('Erro ao fazer upload da foto. Tente novamente.');
     }
