@@ -82,7 +82,7 @@ function NativeAppTabs() {
 function WebAppTabs() {
   return (
     <Tabs>
-      <TabSlot style={{ height: '100%' }} />
+      <TabSlot style={{ height: '100%', paddingTop: Platform.OS === 'web' ? 96 : 0 }} />
       <TabList asChild>
         <CustomTabList>
           <TabTrigger name="donor" href="/donor" asChild>
@@ -135,11 +135,14 @@ function CustomTabList(props: TabListProps) {
 const styles = StyleSheet.create({
   tabListContainer: {
     position: 'absolute',
-    width: '100%',
+    top: 0,
+    left: 0,
+    right: 0,
     padding: Spacing.three,
     justifyContent: 'center',
     alignItems: 'center',
     flexDirection: 'row',
+    zIndex: 100,
   },
   innerContainer: {
     paddingVertical: Spacing.two,
