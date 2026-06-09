@@ -128,7 +128,8 @@ async def get_doador_dashboard(db: AsyncSession, user: Usuario) -> DashboardDoad
 
 
 async def get_ong_dashboard(db: AsyncSession, user: Usuario) -> DashboardONG:
-    ong_id = user.ong.id if user.ong else 0
+    # MODO TESTE: fallback para ONG id=1 quando usuário não tem ONG vinculada
+    ong_id = user.ong.id if user.ong else 1
 
     recebidas = await db.scalar(
         select(func.count())
