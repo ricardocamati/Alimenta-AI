@@ -19,8 +19,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { useDoacao } from '@/hooks/useDoacao';
 import { useDoacoesOng } from '@/hooks/useDoacoesOng';
 import { Spacing, MaxContentWidth, BottomTabInset } from '@/constants/theme';
-import type { NotificacaoCategory, NotificacaoDTO } from '@/types';
-import type { DoacaoDTO, DoacaoOngDTO } from '@/types';
+import type { NotificacaoCategory, NotificacaoDTO, DoacaoDTO } from '@/types';
 
 type Severity = 'CRITICO' | 'ALTO' | 'MEDIO' | 'BAIXO';
 
@@ -79,7 +78,7 @@ function mapSeverityToUrgency(severity: Severity): string {
   }
 }
 
-function normalizeExpiry(d: DoacaoDTO | DoacaoOngDTO): ExpiryDonation {
+function normalizeExpiry(d: DoacaoDTO): ExpiryDonation {
   const calc = computeExpiry(d.data_validade);
   const urgency = (d as { urgencia?: string }).urgencia || 'media';
   return {
@@ -116,7 +115,7 @@ export default function AlertsScreen() {
 
   const doacoesParaAlerta: ExpiryDonation[] = useMemo(() => {
     if (userType === 'ong') {
-      return (doacoesOng as (DoacaoOngDTO & { unidade_medida?: string })[]).map(normalizeExpiry);
+      return (doacoesOng as DoacaoDTO[]).map(normalizeExpiry);
     }
     if (userType === 'doador') {
       return (doacoesDoador as (DoacaoDTO & { unidade_medida?: string })[]).map(normalizeExpiry);

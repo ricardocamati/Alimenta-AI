@@ -2,11 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import api from '@/services/api';
 import type { DoacaoDTO } from '@/types';
 
-export interface DoacaoOngDTO extends DoacaoDTO {
-  doador_nome?: string;
-  distancia_km?: number;
-  score_matching?: number;
-}
+export type DoacaoOngDTO = DoacaoDTO;
 
 export function useDoacoesOng() {
   const [doacoes, setDoacoes] = useState<DoacaoOngDTO[]>([]);

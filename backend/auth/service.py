@@ -4,7 +4,7 @@ import logging
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select as future_select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from auth.schemas import UsuarioCreate
 from auth.utils import hash_password, verify_password
@@ -147,6 +147,14 @@ async def register_async(db: AsyncSession, payload: UsuarioCreate) -> Usuario:
 
     await db.commit()
     await db.refresh(usuario)
+
+    # Eager-load ong relation before serializing response
+    result = await db.execute(
+        future_select(Usuario)
+        .options(selectinload(Usuario.ong))
+        .where(Usuario.id == usuario.id)
+    )
+    usuario = result.scalar_one_or_none()
     return usuario
 
 

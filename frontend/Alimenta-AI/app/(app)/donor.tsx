@@ -111,7 +111,7 @@ export default function DonorScreen() {
     const response = await api.post('/doacoes/upload-foto', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
-    return response.url;
+    return response.data.url;
   };
 
   const handleNextStep1 = () => {
@@ -457,11 +457,20 @@ export default function DonorScreen() {
             </View>
             {/* Step badges indicator */}
             <View style={styles.stepBadges}>
-              <View style={[styles.stepBadge, formStep >= 1 && styles.stepBadgeActive]}><ThemedText style={styles.stepBadgeText}>1</ThemedText></View>
+              <View style={styles.stepItem}>
+                <View style={[styles.stepBadge, formStep >= 1 && styles.stepBadgeActive]}><ThemedText style={styles.stepBadgeText}>1</ThemedText></View>
+                <ThemedText type="code" style={styles.stepLabel}>Produto</ThemedText>
+              </View>
               <View style={styles.stepLine} />
-              <View style={[styles.stepBadge, formStep >= 2 && styles.stepBadgeActive]}><ThemedText style={styles.stepBadgeText}>2</ThemedText></View>
+              <View style={styles.stepItem}>
+                <View style={[styles.stepBadge, formStep >= 2 && styles.stepBadgeActive]}><ThemedText style={styles.stepBadgeText}>2</ThemedText></View>
+                <ThemedText type="code" style={styles.stepLabel}>Validade</ThemedText>
+              </View>
               <View style={styles.stepLine} />
-              <View style={[styles.stepBadge, formStep >= 3 && styles.stepBadgeActive]}><ThemedText style={styles.stepBadgeText}>3</ThemedText></View>
+              <View style={styles.stepItem}>
+                <View style={[styles.stepBadge, formStep >= 3 && styles.stepBadgeActive]}><ThemedText style={styles.stepBadgeText}>3</ThemedText></View>
+                <ThemedText type="code" style={styles.stepLabel}>Revisão</ThemedText>
+              </View>
             </View>
           </View>
 
@@ -493,7 +502,7 @@ export default function DonorScreen() {
                     style={[styles.pickerCell, foodType === type && styles.pickerCellSelected, { borderColor: theme.backgroundSelected }]}
                     onPress={() => setFoodType(type)}
                   >
-                    <ThemedText type="code" style={[styles.pickerCellText, foodType === type && { color: '#ffffff' }]}>
+                    <ThemedText type="small" style={[styles.pickerCellText, foodType === type && { color: '#ffffff' }]}>
                       {type}
                     </ThemedText>
                   </Pressable>
@@ -692,9 +701,9 @@ export default function DonorScreen() {
                   <View style={styles.ngoSuggestionBox}>
                     <SymbolView name="hands.sparkles.fill" size={22} tintColor="#ff9800" />
                     <View style={{ flex: 1, marginLeft: Spacing.two }}>
-                      <ThemedText type="smallBold">{donation.matchedNgoName || 'Melhor ONG disponível'}</ThemedText>
+                      <ThemedText type="smallBold">{'Melhor ONG disponível'}</ThemedText>
                       <ThemedText type="code" style={{ fontSize: 10 }}>
-                        Score: {donation.score_matching ? Math.round(donation.score_matching) : '0'}/100 • Distância: {donation.distancia_km ? `${donation.distancia_km.toFixed(1)} km` : 'Calculando...'}
+                        {'Score: 0/100 • Distância: Calculando...'}
                       </ThemedText>
                     </View>
                     <View style={styles.matchScoreBadge}>
@@ -995,6 +1004,14 @@ const styles = StyleSheet.create({
     width: 15,
     height: 2,
     backgroundColor: 'rgba(150,150,150,0.2)',
+  },
+  stepItem: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  stepLabel: {
+    fontSize: 10,
+    marginTop: 2,
   },
   stepWrapper: {
     gap: Spacing.two,

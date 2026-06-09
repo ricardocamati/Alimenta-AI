@@ -91,6 +91,31 @@ export default function NgoScreen() {
 
   const dash = dashData && 'perfil' in dashData && dashData.perfil === 'ong' ? dashData : null;
 
+  React.useEffect(() => {
+    if (ong) {
+      setCapInput(String(ong.capacidade_atendimento));
+      setScheduleInput(ong.pickup_schedule || '');
+    }
+  }, [ong?.capacidade_atendimento, ong?.pickup_schedule]);
+
+  const handleSavePrefs = async () => {
+    if (!ong) return;
+    setSavingPrefs(true);
+    setMsgPrefs('');
+    try {
+      await updateOngPrefs({
+        capacidade_atendimento: parseInt(capInput, 10) || ong.capacidade_atendimento,
+        pickup_schedule: scheduleInput,
+      });
+      setMsgPrefs('Preferências atualizadas!');
+      setTimeout(() => setMsgPrefs(''), 2500);
+    } catch (err) {
+      setMsgPrefs('Erro ao salvar');
+    } finally {
+      setSavingPrefs(false);
+    }
+  };
+
   const handleAction = async (doacao: DoacaoDTO, novoStatus: string) => {
     setLoadingAction(true);
     setMsg('');
@@ -381,31 +406,6 @@ export default function NgoScreen() {
             const photo = getDonationPhoto(doacao.tipo_alimento);
             const isSelected = selectedId === doacao.id;
             
-  React.useEffect(() => {
-    if (ong) {
-      setCapInput(String(ong.capacidade_atendimento));
-      setScheduleInput(ong.pickup_schedule || '');
-    }
-  }, [ong?.capacidade_atendimento, ong?.pickup_schedule]);
-
-  const handleSavePrefs = async () => {
-    if (!ong) return;
-    setSavingPrefs(true);
-    setMsgPrefs('');
-    try {
-      await updateOngPrefs({
-        capacidade_atendimento: parseInt(capInput, 10) || ong.capacidade_atendimento,
-        pickup_schedule: scheduleInput,
-      });
-      setMsgPrefs('Preferências atualizadas!');
-      setTimeout(() => setMsgPrefs(''), 2500);
-    } catch (err) {
-      setMsgPrefs('Erro ao salvar');
-    } finally {
-      setSavingPrefs(false);
-    }
-  };
-
   return (
               <Pressable 
                 key={doacao.id}

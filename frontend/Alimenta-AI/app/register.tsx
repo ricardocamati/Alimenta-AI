@@ -24,6 +24,7 @@ import {
   maskCEP,
   isValidCpfCnpjFormat,
   isValidCEP,
+  isValidPhone,
 } from '@/utils/masks';
 import * as Location from 'expo-location';
 
@@ -264,11 +265,15 @@ export default function RegisterScreen() {
       <SafeAreaView style={styles.safeArea}>
         <ThemedView style={styles.brandContainer}>
           <View style={styles.logoCircle}>
-            <SymbolView
-              name={(Platform.OS === 'ios' ? 'fork.knife.circle.fill' : 'restaurant') as any}
-              size={48}
-              tintColor="#3c87f7"
-            />
+            {Platform.OS === 'web' ? (
+              <ThemedText style={{ fontSize: 28 }}>🍽️</ThemedText>
+            ) : (
+              <SymbolView
+                name={(Platform.OS === 'ios' ? 'fork.knife.circle.fill' : 'restaurant') as any}
+                size={48}
+                tintColor="#3c87f7"
+              />
+            )}
           </View>
           <ThemedText type="title" style={styles.brandTitle}>AlimentAÇÃO</ThemedText>
           <ThemedText type="small" themeColor="textSecondary" style={styles.brandSubtitle}>
@@ -335,6 +340,7 @@ export default function RegisterScreen() {
               onChangeText={setRegEmail}
               keyboardType="email-address"
               autoCapitalize="none"
+              autoComplete="email"
               hasError={!!fieldErrors.email}
             />
 
@@ -343,11 +349,12 @@ export default function RegisterScreen() {
               error={fieldErrors.cpf_cnpj}
             />
             <Input
-              placeholder={mode === 'donor' ? '000.000.000-00' : '00.000.000/0000-00'}
+              placeholder={mode === 'donor' ? 'CPF: 000.000.000-00 ou CNPJ: 00.000.000/0000-00' : '00.000.000/0000-00'}
               placeholderTextColor={theme.textSecondary}
               value={cnpjCpf}
               onChangeText={(v) => setCnpjCpf(maskCpfCnpj(v))}
               keyboardType="numeric"
+              maxLength={18}
               hasError={!!fieldErrors.cpf_cnpj}
             />
 
@@ -358,6 +365,7 @@ export default function RegisterScreen() {
               value={phone}
               onChangeText={(v) => setPhone(maskPhone(v))}
               keyboardType="phone-pad"
+              autoComplete="tel"
               hasError={!!fieldErrors.telefone}
             />
 
@@ -376,6 +384,7 @@ export default function RegisterScreen() {
                   value={cep}
                   onChangeText={(v) => setCep(maskCEP(v))}
                   keyboardType="numeric"
+                  autoComplete="postal-code"
                   hasError={!!fieldErrors.cep}
                 />
               </View>
@@ -392,6 +401,7 @@ export default function RegisterScreen() {
               placeholderTextColor={theme.textSecondary}
               value={logradouro}
               onChangeText={setLogradouro}
+              autoComplete="street-address"
               hasError={!!fieldErrors.logradouro}
             />
 
@@ -435,6 +445,7 @@ export default function RegisterScreen() {
                   placeholderTextColor={theme.textSecondary}
                   value={cidade}
                   onChangeText={setCidade}
+                  autoComplete="address-level2"
                   hasError={!!fieldErrors.cidade}
                 />
               </View>
@@ -446,6 +457,7 @@ export default function RegisterScreen() {
                   value={uf}
                   onChangeText={(v) => setUf(v.toUpperCase().slice(0, 2))}
                   autoCapitalize="characters"
+                  autoComplete="address-level1"
                   maxLength={2}
                   hasError={!!fieldErrors.uf}
                 />
@@ -511,6 +523,7 @@ export default function RegisterScreen() {
               secureTextEntry
               value={password}
               onChangeText={setPassword}
+              autoComplete="new-password"
               hasError={!!fieldErrors.senha}
             />
 
@@ -552,8 +565,16 @@ const styles = StyleSheet.create({
   brandTitle: { fontSize: 32, fontWeight: '800', letterSpacing: -0.5 },
   brandSubtitle: { textAlign: 'center', marginTop: Spacing.one, paddingHorizontal: Spacing.four },
   containerCard: {
-    borderRadius: Spacing.four, padding: Spacing.four, elevation: 3,
-    shadowColor: '#000000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8,
+    borderRadius: Spacing.four, padding: Spacing.four,
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+      },
+      default: {
+        elevation: 3,
+        shadowColor: '#000000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8,
+      },
+    }),
     borderWidth: 1, borderColor: 'rgba(150, 150, 150, 0.08)',
   },
   tabHeaders: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: 'rgba(150, 150, 150, 0.15)', marginBottom: Spacing.four },
