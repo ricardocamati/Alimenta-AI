@@ -21,7 +21,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useDoacao } from '@/hooks/useDoacao';
 import api from '@/services/api';
 import { useDashboard } from '@/hooks/useDashboard';
-import { useStore } from '@/hooks/use-store';
+import { useNotifications } from '@/hooks/useNotifications';
 import { UrgencyBadge } from '@/components/urgency-badge';
 import { ErrorMessage } from '@/components/ErrorMessage';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -49,7 +49,7 @@ export default function DonorScreen() {
   const { user, logout } = useAuth();
   const { doacoes, isLoading: loadingDoacoes, error: doacaoError, createDoacao, refresh: refreshDoacoes } = useDoacao();
   const { data: dashData, isLoading: loadingDash, error: dashError, refresh: refreshDash } = useDashboard();
-  const store = useStore();
+  const { notifs: donorNotifications, markRead: markDonorNotifRead } = useNotifications({ autoRefresh: true, intervalMs: 30000 });
   const theme = useTheme();
 
   const isDonorLoggedIn = !!(user && user.tipo === 'doador');
@@ -98,8 +98,7 @@ export default function DonorScreen() {
   // --- OTHER STATES ---
   const [showCertificate, setShowCertificate] = useState(false);
 
-  // Filter notifications for this specific donor
-  const donorNotifications = store.notifications.filter(n => n.userId === activeDonorId);
+  // Filter notifications for this specific donor (ja vem filtrado do backend pelo user_id)
   const hasLocation = latitude !== null && longitude !== null;
 
   const uploadFoto = async (photoAsset: ImagePicker.ImagePickerAsset): Promise<string> => {
@@ -820,9 +819,9 @@ export default function DonorScreen() {
           ) : (
             <View style={styles.notifList}>
               {donorNotifications.map(notif => (
-                <Pressable 
-                  key={notif.id} 
-                  onPress={() => store.markNotificationRead(notif.id)}
+                <Pressable
+                  key={notif.id}
+                  onPress={() => markDonorNotifRead(notif.id)}
                   style={[styles.notifCard, !notif.read && styles.notifUnread, { borderBottomColor: theme.backgroundSelected }]}
                 >
                   <View style={{ flex: 1 }}>

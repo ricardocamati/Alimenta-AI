@@ -10,7 +10,7 @@ export function getTokenKey(): string {
 
 const api = axios.create({
   baseURL: process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:8000',
-  timeout: 10000,
+  timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
 });
 

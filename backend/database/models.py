@@ -2,6 +2,7 @@ import enum
 from datetime import date, datetime
 
 from sqlalchemy import (
+    Boolean,
     Column,
     Date,
     DateTime,
@@ -142,6 +143,9 @@ class ONG(Base):
     capacidade_atendimento: Mapped[int] = mapped_column(Integer, nullable=False)
     latitude: Mapped[float] = mapped_column(Float, nullable=False)
     longitude: Mapped[float] = mapped_column(Float, nullable=False)
+    pickup_radius: Mapped[float | None] = mapped_column(Float, nullable=True)
+    accepted_food_types: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pickup_schedule: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
     usuario: Mapped["Usuario"] = relationship(
         "Usuario", back_populates="ong", foreign_keys=[usuario_id]
@@ -220,3 +224,53 @@ class ScoreMatching(Base):
 
     def __repr__(self) -> str:
         return f"<ScoreMatching(id={self.id}, doacao_id={self.doacao_id}, ong_id={self.ong_id}, score_final={self.score_final})>"
+
+
+class CategoriaNotificacao(str, enum.Enum):
+    expiry = "expiry"
+    scarcity = "scarcity"
+    status = "status"
+    system = "system"
+
+
+class Notificacao(Base):
+    __tablename__ = "notificacoes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    user_type: Mapped[TipoUsuario] = mapped_column(
+        Enum(TipoUsuario, name="notif_user_type_enum"), nullable=False
+    )
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    category: Mapped[CategoriaNotificacao] = mapped_column(
+        Enum(CategoriaNotificacao, name="notif_category_enum"), nullable=False
+    )
+    related_donation_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("doacoes.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    read: Mapped[bool] = mapped_column(Boolean, server_default="0", nullable=False, index=True)
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+    doacao: Mapped["Doacao | None"] = relationship("Doacao", foreign_keys=[related_donation_id])
+
+    def __repr__(self) -> str:
+        return (
+            f"<Notificacao(id={self.id}, user_id={self.user_id}, "
+            f"user_type='{self.user_type.value}', category='{self.category.value}')>"
+        )
+
+
+class AppConfig(Base):
+    __tablename__ = "app_config"
+
+    chave: Mapped[str] = mapped_column(String(100), primary_key=True)
+    valor: Mapped[str | None] = mapped_column(Text, nullable=True)
+    atualizado_em: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    def __repr__(self) -> str:
+        return f"<AppConfig(chave='{self.chave}', valor='{self.valor}')>"

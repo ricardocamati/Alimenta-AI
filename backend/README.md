@@ -17,14 +17,14 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# Sobe a API em 0.0.0.0:8002
-TEST_MODE=true uvicorn main:app --host 0.0.0.0 --port 8002 --reload
+# Sobe a API em 0.0.0.0:8000
+TEST_MODE=true uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 A documentacao interativa fica em:
 
-- Swagger UI -> http://localhost:8002/docs
-- ReDoc      -> http://localhost:8002/redoc
+- Swagger UI -> http://localhost:8000/docs
+- ReDoc      -> http://localhost:8000/redoc
 
 ### O que o `TEST_MODE=true` muda
 
@@ -66,7 +66,7 @@ disponiveis para teste:
 ### 1. Healthcheck
 
 ```bash
-curl -s http://localhost:8002/health
+curl -s http://localhost:8000/health
 ```
 
 Resposta esperada:
@@ -78,7 +78,7 @@ Resposta esperada:
 ### 2. Login (gera token JWT)
 
 ```bash
-curl -s -X POST http://localhost:8002/auth/login \
+curl -s -X POST http://localhost:8000/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"ong@teste.com","senha":"teste123"}'
 ```
@@ -98,7 +98,8 @@ curl -s http://localhost:8002/dashboard/ong \
 ### 4. Auto-fill de CEP (público)
 
 ```bash
-curl -s http://localhost:8002/auth/cep/01310100
+```bash
+curl -s -X POST http://localhost:8000/auth/cep/01310100
 ```
 
 Resposta:
@@ -120,7 +121,8 @@ CEP invalido -> **HTTP 404** com `{"detail": "CEP nao encontrado"}`.
 ### 5. Listar todos os endpoints
 
 ```bash
-curl -s http://localhost:8002/openapi.json | python3 -m json.tool | head -40
+```bash
+curl -s http://localhost:8000/openapi.json | python3 -m json.tool | head -40
 ```
 
 ---
@@ -167,7 +169,7 @@ uvicorn main:app --host 0.0.0.0 --port 8002 --workers 4
 ## Problemas comuns
 
 - **`ValueError: SECRET_KEY nao configurada...`** -- Defina `SECRET_KEY` ou rode com `TEST_MODE=true`.
-- **`Address already in use` na porta 8002** -- `lsof -i :8002`, mate o PID, ou use outra porta.
+- **`Address already in use` na porta 8000** -- `lsof -i :8000`, mate o PID, ou use outra porta.
 - **`alimenta.db` lockado** -- Pare todos os processos uvicorn e apague `alimenta.db-journal`.
 - **`ModuleNotFoundError: fastapi`** -- Ative a venv: `source .venv/bin/activate`.
 - **Frontend em 404 nas rotas** (`/ngo`, `/donor`, ...) -- Use o `scripts/spa_serve.py` (ver `frontend/Alimenta-AI/README.md`).

@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  StyleSheet, 
-  Pressable, 
-  ScrollView, 
-  View, 
-  ActivityIndicator 
+import React, { useState, useMemo } from 'react';
+import {
+  StyleSheet,
+  Pressable,
+  ScrollView,
+  View,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
@@ -13,29 +13,42 @@ import { router } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { UrgencyBadge } from '@/components/urgency-badge';
-import { useStore, Donation } from '@/hooks/use-store';
 import { useTheme } from '@/hooks/use-theme';
+import { useAuth } from '@/hooks/useAuth';
+import { useNotifications } from '@/hooks/useNotifications';
+import { useDoacao } from '@/hooks/useDoacao';
+import { useDoacoesOng } from '@/hooks/useDoacoesOng';
 import { Spacing, MaxContentWidth, BottomTabInset } from '@/constants/theme';
+import type { NotificacaoCategory, NotificacaoDTO } from '@/types';
+import type { DoacaoDTO, DoacaoOngDTO } from '@/types';
 
 type Severity = 'CRITICO' | 'ALTO' | 'MEDIO' | 'BAIXO';
 
-function getExpirySeverity(donation: Donation): { severity: Severity; diffDays: number; label: string } {
+type ExpiryDonation = {
+  id: number;
+  name: string;
+  quantity: string;
+  donorName: string | null;
+  storageConditions: string;
+  expiryDate: string;
+  status: string;
+  matchedNgoName?: string | null;
+  urgency?: string;
+  severity: Severity;
+  diffDays: number;
+  label: string;
+};
+
+function computeExpiry(expiryDate: string): { severity: Severity; diffDays: number; label: string } {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const expiry = new Date(donation.expiryDate);
+  const expiry = new Date(expiryDate);
   const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
   let severity: Severity;
-  if (diffDays <= 0) {
-    severity = 'CRITICO';
-  } else if (diffDays <= 2) {
-    severity = 'ALTO';
-  } else {
-    severity = 'MEDIO';
-  }
-
+  if (diffDays <= 0) severity = 'CRITICO';
+  else if (diffDays <= 2) severity = 'ALTO';
+  else severity = 'MEDIO';
   const label = diffDays <= 0 ? 'Vence HOJE' : diffDays === 1 ? 'Vence em 1 dia' : `Vence em ${diffDays} dias`;
-
   return { severity, diffDays, label };
 }
 
@@ -66,71 +79,103 @@ function mapSeverityToUrgency(severity: Severity): string {
   }
 }
 
+function normalizeExpiry(d: DoacaoDTO | DoacaoOngDTO): ExpiryDonation {
+  const calc = computeExpiry(d.data_validade);
+  const urgency = (d as { urgencia?: string }).urgencia || 'media';
+  return {
+    id: d.id,
+    name: d.tipo_alimento,
+    quantity: `${d.quantidade}${d.unidade_medida ? ' ' + d.unidade_medida : ''}`,
+    donorName: d.doador_nome ?? null,
+    storageConditions: '—',
+    expiryDate: d.data_validade,
+    status: d.status,
+    matchedNgoName: null,
+    urgency,
+    ...calc,
+  };
+}
+
 export default function AlertsScreen() {
-  const store = useStore();
   const theme = useTheme();
+  const { user } = useAuth();
 
   const [activeFilter, setActiveFilter] = useState<'all' | 'expiry' | 'scarcity' | 'status'>('all');
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [scanning, setScanning] = useState(false);
 
-  const currentUserId = store.currentUser?.id;
-  const currentUserType = store.currentUser?.role;
+  const userType = user?.tipo;
 
-  useEffect(() => {
-    setScanning(true);
-    setTimeout(() => {
-      store.triggerExpiryAlerts();
-      setScanning(false);
-    }, 800);
-  }, []);
+  const { notifs, isLoading: loadingNotifs, markRead, markAllRead, triggerExpiry, refresh } = useNotifications({
+    autoRefresh: true,
+    intervalMs: 30000,
+  });
 
-  const allNotifications = store.notifications.filter(n => {
-    if (currentUserId && currentUserType) {
-      if (n.userType === 'admin' && currentUserType !== 'admin') return false;
-      if (n.userType !== 'admin' && n.userId !== currentUserId) {
-        return n.userType === currentUserType;
-      }
+  const { doacoes: doacoesDoador } = useDoacao();
+  const { doacoes: doacoesOng } = useDoacoesOng();
+
+  const doacoesParaAlerta: ExpiryDonation[] = useMemo(() => {
+    if (userType === 'ong') {
+      return (doacoesOng as (DoacaoOngDTO & { unidade_medida?: string })[]).map(normalizeExpiry);
     }
-    return true;
-  });
+    if (userType === 'doador') {
+      return (doacoesDoador as (DoacaoDTO & { unidade_medida?: string })[]).map(normalizeExpiry);
+    }
+    return [];
+  }, [userType, doacoesDoador, doacoesOng]);
 
-  const filteredNotifications = allNotifications.filter(n => {
-    if (activeFilter !== 'all' && n.category !== activeFilter) return false;
-    if (showUnreadOnly && n.read) return false;
-    return true;
-  });
+  const allNotifications: NotificacaoDTO[] = notifs;
 
-  const allDonations = currentUserType === 'admin'
-    ? store.donations
-    : store.donations.filter(d =>
-        (currentUserType === 'donor' && d.donorId === currentUserId) ||
-        (currentUserType === 'ngo' && d.matchedNgoId === currentUserId)
-      );
+  const filteredNotifications = useMemo(() => {
+    return allNotifications.filter(n => {
+      if (activeFilter !== 'all' && n.category !== activeFilter) return false;
+      if (showUnreadOnly && n.read) return false;
+      return true;
+    });
+  }, [allNotifications, activeFilter, showUnreadOnly]);
 
-  const nearExpiryDonations = allDonations
-    .map(d => ({ ...getExpirySeverity(d), donation: d }))
-    .filter(item => item.diffDays <= 3)
-    .sort((a, b) => a.diffDays - b.diffDays);
+  const nearExpiryDonations = useMemo(() => {
+    return doacoesParaAlerta
+      .filter(d => d.diffDays <= 3)
+      .sort((a, b) => a.diffDays - b.diffDays);
+  }, [doacoesParaAlerta]);
 
   const scarcityAlerts = filteredNotifications.filter(n => n.category === 'scarcity');
   const expiryAlerts = filteredNotifications.filter(n => n.category === 'expiry');
   const unreadCount = allNotifications.filter(n => !n.read).length;
-
-  const criticalCount = nearExpiryDonations.filter(item => item.severity === 'CRITICO').length;
-  const highCount = nearExpiryDonations.filter(item => item.severity === 'ALTO').length;
+  const criticalCount = nearExpiryDonations.filter(d => d.severity === 'CRITICO').length;
 
   const handleMarkAllRead = () => {
-    allNotifications.filter(n => !n.read).forEach(n => store.markNotificationRead(n.id));
+    markAllRead();
   };
 
+  const handleTriggerExpiry = async () => {
+    setScanning(true);
+    try {
+      const criadas = await triggerExpiry();
+      refresh();
+      if (criadas === 0) {
+        // sem novas — só recarrega
+      }
+    } catch {
+      // erro silencioso (UI pode mostrar o error do hook)
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const categoryFilter: NotificacaoCategory | undefined =
+    activeFilter === 'all' || activeFilter === 'expiry' || activeFilter === 'scarcity' || activeFilter === 'status'
+      ? (activeFilter === 'all' ? undefined : (activeFilter as NotificacaoCategory))
+      : undefined;
+
   return (
-    <ScrollView 
+    <ScrollView
       style={[styles.container, { backgroundColor: theme.background }]}
       contentContainerStyle={styles.scrollContent}
     >
       <SafeAreaView style={styles.safeArea}>
-        
+
         <ThemedView style={styles.header}>
           <View>
             <ThemedText type="subtitle">Central de Alertas</ThemedText>
@@ -138,16 +183,16 @@ export default function AlertsScreen() {
               Monitoramento de vencimentos, escassez e notificações
             </ThemedText>
           </View>
-          {store.currentUser && (
+          {user && (
             <View style={styles.headerActions}>
               <Pressable style={styles.markAllBtn} onPress={handleMarkAllRead}>
                 <ThemedText type="code" style={{ color: '#3c87f7', fontSize: 10 }}>Marcar todas lidas</ThemedText>
               </Pressable>
-              <Pressable 
+              <Pressable
                 style={styles.backToDashBtn}
                 onPress={() => {
-                  if (currentUserType === 'donor') router.push('/donor');
-                  else if (currentUserType === 'ngo') router.push('/ngo');
+                  if (userType === 'doador') router.push('/donor');
+                  else if (userType === 'ong') router.push('/ngo');
                   else router.push('/admin');
                 }}
               >
@@ -157,16 +202,26 @@ export default function AlertsScreen() {
           )}
         </ThemedView>
 
-        {scanning && (
+        <ThemedView type="backgroundElement" style={styles.scanningBanner}>
+          <Pressable onPress={handleTriggerExpiry} disabled={scanning} style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {scanning ? (
+              <ActivityIndicator size="small" color="#3c87f7" />
+            ) : (
+              <SymbolView name="arrow.clockwise" size={16} tintColor="#3c87f7" />
+            )}
+            <ThemedText type="small" style={{ marginLeft: Spacing.two, color: '#3c87f7' }}>
+              {scanning ? 'Verificando doações próximas ao vencimento...' : 'Reverificar alertas de vencimento'}
+            </ThemedText>
+          </Pressable>
+        </ThemedView>
+
+        {loadingNotifs && (
           <ThemedView type="backgroundElement" style={styles.scanningBanner}>
             <ActivityIndicator size="small" color="#3c87f7" />
-            <ThemedText type="small" style={{ marginLeft: Spacing.two, color: '#3c87f7' }}>
-              Verificando doações próximas ao vencimento...
-            </ThemedText>
+            <ThemedText type="small" style={{ marginLeft: Spacing.two }}>Carregando notificações...</ThemedText>
           </ThemedView>
         )}
 
-        {/* KPI Summary Row */}
         <View style={styles.kpiContainer}>
           <ThemedView type="backgroundElement" style={[styles.kpiCard, { borderLeftColor: '#f44336' }]}>
             <View style={styles.kpiIconRow}>
@@ -201,7 +256,6 @@ export default function AlertsScreen() {
           </ThemedView>
         </View>
 
-        {/* Filter Tabs */}
         <ThemedView type="backgroundElement" style={styles.filterContainer}>
           <View style={styles.filterRow}>
             {([
@@ -215,9 +269,9 @@ export default function AlertsScreen() {
                 style={[styles.filterBtn, activeFilter === f.key && styles.filterBtnActive]}
                 onPress={() => setActiveFilter(f.key)}
               >
-                <SymbolView 
-                  name={f.icon} 
-                  size={14} 
+                <SymbolView
+                  name={f.icon}
+                  size={14}
                   tintColor={activeFilter === f.key ? '#ffffff' : theme.textSecondary}
                 />
                 <ThemedText type="code" style={[styles.filterBtnText, activeFilter === f.key && { color: '#ffffff' }]}>
@@ -227,13 +281,13 @@ export default function AlertsScreen() {
             ))}
           </View>
 
-          <Pressable 
+          <Pressable
             style={[styles.toggleUnreadBtn, showUnreadOnly && styles.toggleUnreadActive]}
             onPress={() => setShowUnreadOnly(!showUnreadOnly)}
           >
-            <SymbolView 
-              name={showUnreadOnly ? 'eye.slash.fill' : 'eye.fill'} 
-              size={14} 
+            <SymbolView
+              name={showUnreadOnly ? 'eye.slash.fill' : 'eye.fill'}
+              size={14}
               tintColor={showUnreadOnly ? '#ffffff' : '#ff9800'}
             />
             <ThemedText type="code" style={[styles.toggleUnreadText, showUnreadOnly && { color: '#ffffff' }]}>
@@ -242,7 +296,6 @@ export default function AlertsScreen() {
           </Pressable>
         </ThemedView>
 
-        {/* SECTION 1: NEAR EXPIRY DONATIONS */}
         <ThemedView type="backgroundElement" style={styles.card}>
           <View style={styles.cardHeader}>
             <SymbolView name="clock.badge.exclamationmark.fill" size={18} tintColor="#f44336" />
@@ -258,49 +311,40 @@ export default function AlertsScreen() {
             </ThemedText>
           ) : (
             <View style={styles.expiryList}>
-              {nearExpiryDonations.map(({ donation, severity, label }) => (
-                <ThemedView 
-                  key={donation.id} 
-                  type="backgroundSelected" 
-                  style={[styles.expiryCard, { borderLeftColor: getSeverityColor(severity) }]}
+              {nearExpiryDonations.map(d => (
+                <ThemedView
+                  key={d.id}
+                  type="backgroundSelected"
+                  style={[styles.expiryCard, { borderLeftColor: getSeverityColor(d.severity) }]}
                 >
                   <View style={styles.expiryCardHeader}>
-                    <UrgencyBadge urgency={mapSeverityToUrgency(severity)} compact />
-                    <ThemedText type="code" style={[styles.expiryDays, { color: getSeverityColor(severity) }]}>
-                      {label.toUpperCase()}
+                    <UrgencyBadge urgency={mapSeverityToUrgency(d.severity)} compact />
+                    <ThemedText type="code" style={[styles.expiryDays, { color: getSeverityColor(d.severity) }]}>
+                      {d.label.toUpperCase()}
                     </ThemedText>
                   </View>
 
                   <View style={styles.expiryBody}>
                     <View style={{ flex: 1 }}>
-                      <ThemedText type="smallBold">{donation.name}</ThemedText>
+                      <ThemedText type="smallBold">{d.name}</ThemedText>
                       <ThemedText type="small" style={{ fontSize: 13, marginTop: 2 }}>
-                        {donation.quantity} • {donation.donorName} • {donation.storageConditions}
+                        {d.quantity} • {d.donorName ?? '—'} • {d.storageConditions}
                       </ThemedText>
                       <ThemedText type="code" style={{ fontSize: 10, opacity: 0.6, marginTop: 4 }}>
-                        Validade: {donation.expiryDate} • Status: {donation.status}
+                        Validade: {d.expiryDate} • Status: {d.status}
                       </ThemedText>
                     </View>
-
-                    {donation.matchedNgoName && (
-                      <View style={styles.expiryNgoTag}>
-                        <SymbolView name="building.2" size={12} tintColor="#ff9800" />
-                        <ThemedText type="code" style={{ fontSize: 9, color: '#ff9800', marginLeft: 4 }}>
-                          {donation.matchedNgoName}
-                        </ThemedText>
-                      </View>
-                    )}
                   </View>
 
                   <View style={styles.expiryProgressTrack}>
-                    <View 
+                    <View
                       style={[
                         styles.expiryProgressFill,
-                        { 
-                          backgroundColor: getSeverityColor(severity),
-                          width: `${getSeverityPercent(severity)}%`,
+                        {
+                          backgroundColor: getSeverityColor(d.severity),
+                          width: `${getSeverityPercent(d.severity)}%`,
                         },
-                      ]} 
+                      ]}
                     />
                   </View>
                 </ThemedView>
@@ -309,7 +353,6 @@ export default function AlertsScreen() {
           )}
         </ThemedView>
 
-        {/* SECTION 2: SCARCITY PREDICTIVE ALERTS */}
         <ThemedView type="backgroundElement" style={styles.card}>
           <View style={styles.cardHeader}>
             <SymbolView name="chart.line.downtrend.xyaxis" size={18} tintColor="#e91e63" />
@@ -328,7 +371,7 @@ export default function AlertsScreen() {
               {scarcityAlerts.map(alert => (
                 <Pressable
                   key={alert.id}
-                  onPress={() => store.markNotificationRead(alert.id)}
+                  onPress={() => markRead(alert.id)}
                   style={[styles.scarcityCard, !alert.read && styles.scarcityUnread]}
                 >
                   <View style={{ flex: 1 }}>
@@ -352,7 +395,6 @@ export default function AlertsScreen() {
           )}
         </ThemedView>
 
-        {/* SECTION 3: ALL NOTIFICATIONS FEED */}
         <ThemedView type="backgroundElement" style={styles.card}>
           <View style={styles.cardHeader}>
             <SymbolView name="bell.fill" size={18} tintColor="#3c87f7" />
@@ -372,44 +414,42 @@ export default function AlertsScreen() {
             </ThemedText>
           ) : (
             <View style={styles.notifList}>
-              {filteredNotifications
-                .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-                .map(notif => (
-                  <Pressable
-                    key={notif.id}
-                    onPress={() => store.markNotificationRead(notif.id)}
-                    style={[styles.notifCard, !notif.read && styles.notifUnread, { borderBottomColor: theme.backgroundSelected }]}
-                  >
-                    <View style={styles.notifLeft}>
-                      <View style={[styles.notifCatIcon, { backgroundColor: getNotifCatColor(notif.category) + '20' }]}>
-                        <SymbolView 
-                          name={getNotifCatIcon(notif.category) as any} 
-                          size={16} 
-                          tintColor={getNotifCatColor(notif.category)}
-                        />
-                      </View>
+              {filteredNotifications.map(notif => (
+                <Pressable
+                  key={notif.id}
+                  onPress={() => markRead(notif.id)}
+                  style={[styles.notifCard, !notif.read && styles.notifUnread, { borderBottomColor: theme.backgroundSelected }]}
+                >
+                  <View style={styles.notifLeft}>
+                    <View style={[styles.notifCatIcon, { backgroundColor: getNotifCatColor(notif.category) + '20' }]}>
+                      <SymbolView
+                        name={getNotifCatIcon(notif.category) as any}
+                        size={16}
+                        tintColor={getNotifCatColor(notif.category)}
+                      />
                     </View>
+                  </View>
 
-                    <View style={styles.notifBody}>
-                      <View style={styles.notifTopRow}>
-                        <ThemedText type="smallBold" style={!notif.read ? { color: getNotifCatColor(notif.category) } : undefined} numberOfLines={1}>
-                          {notif.title}
-                        </ThemedText>
-                        <ThemedText type="code" style={styles.notifCatBadge}>
-                          {notif.category.toUpperCase()}
-                        </ThemedText>
-                      </View>
-                      <ThemedText type="small" style={{ fontSize: 13, marginTop: 2 }} numberOfLines={2}>
-                        {notif.message}
+                  <View style={styles.notifBody}>
+                    <View style={styles.notifTopRow}>
+                      <ThemedText type="smallBold" style={!notif.read ? { color: getNotifCatColor(notif.category) } : undefined} numberOfLines={1}>
+                        {notif.title}
                       </ThemedText>
-                      <ThemedText type="code" style={{ fontSize: 9, opacity: 0.5, marginTop: 4 }}>
-                        {new Date(notif.timestamp).toLocaleDateString('pt-BR')} às {new Date(notif.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                      <ThemedText type="code" style={styles.notifCatBadge}>
+                        {notif.category.toUpperCase()}
                       </ThemedText>
                     </View>
+                    <ThemedText type="small" style={{ fontSize: 13, marginTop: 2 }} numberOfLines={2}>
+                      {notif.message}
+                    </ThemedText>
+                    <ThemedText type="code" style={{ fontSize: 9, opacity: 0.5, marginTop: 4 }}>
+                      {new Date(notif.timestamp).toLocaleDateString('pt-BR')} às {new Date(notif.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                    </ThemedText>
+                  </View>
 
-                    {!notif.read && <View style={styles.unreadDot} />}
-                  </Pressable>
-                ))}
+                  {!notif.read && <View style={styles.unreadDot} />}
+                </Pressable>
+              ))}
             </View>
           )}
         </ThemedView>
@@ -440,9 +480,7 @@ function getNotifCatIcon(category: string): string {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
     alignItems: 'center',
@@ -464,14 +502,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(150, 150, 150, 0.15)',
   },
-  headerActions: {
-    alignItems: 'flex-end',
-    gap: Spacing.one,
-  },
-  markAllBtn: {
-    paddingVertical: 2,
-    paddingHorizontal: Spacing.two,
-  },
+  headerActions: { alignItems: 'flex-end', gap: Spacing.one },
+  markAllBtn: { paddingVertical: 2, paddingHorizontal: Spacing.two },
   backToDashBtn: {
     backgroundColor: '#3c87f7',
     paddingVertical: Spacing.one,
@@ -487,10 +519,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
     borderLeftColor: '#3c87f7',
   },
-  kpiContainer: {
-    flexDirection: 'row',
-    gap: Spacing.one,
-  },
+  kpiContainer: { flexDirection: 'row', gap: Spacing.one },
   kpiCard: {
     flex: 1,
     alignItems: 'center',
@@ -501,28 +530,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(150,150,150,0.06)',
   },
-  kpiIconRow: {
-    marginBottom: 2,
-  },
-  kpiValue: {
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  kpiLabel: {
-    fontSize: 8,
-    opacity: 0.8,
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  filterContainer: {
-    borderRadius: Spacing.two,
-    padding: Spacing.two,
-    gap: Spacing.two,
-  },
-  filterRow: {
-    flexDirection: 'row',
-    gap: Spacing.one,
-  },
+  kpiIconRow: { marginBottom: 2 },
+  kpiValue: { fontSize: 18, fontWeight: '800' },
+  kpiLabel: { fontSize: 8, opacity: 0.8, marginTop: 2, textAlign: 'center' },
+  filterContainer: { borderRadius: Spacing.two, padding: Spacing.two, gap: Spacing.two },
+  filterRow: { flexDirection: 'row', gap: Spacing.one },
   filterBtn: {
     flex: 1,
     flexDirection: 'row',
@@ -534,14 +546,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(150,150,150,0.12)',
   },
-  filterBtnActive: {
-    backgroundColor: '#3c87f7',
-    borderColor: '#3c87f7',
-  },
-  filterBtnText: {
-    fontSize: 10,
-    opacity: 0.7,
-  },
+  filterBtnActive: { backgroundColor: '#3c87f7', borderColor: '#3c87f7' },
+  filterBtnText: { fontSize: 10, opacity: 0.7 },
   toggleUnreadBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -552,14 +558,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ff980040',
   },
-  toggleUnreadActive: {
-    backgroundColor: '#ff9800',
-    borderColor: '#ff9800',
-  },
-  toggleUnreadText: {
-    fontSize: 10,
-    color: '#ff9800',
-  },
+  toggleUnreadActive: { backgroundColor: '#ff9800', borderColor: '#ff9800' },
+  toggleUnreadText: { fontSize: 10, color: '#ff9800' },
   card: {
     borderRadius: Spacing.three,
     padding: Spacing.four,
@@ -567,59 +567,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(150,150,150,0.08)',
   },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.two,
-  },
-  cardDesc: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: Spacing.three,
-  },
-  emptyText: {
-    textAlign: 'center',
-    padding: Spacing.three,
-  },
-  expiryList: {
-    gap: Spacing.two,
-  },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.two },
+  cardDesc: { fontSize: 13, lineHeight: 18, marginBottom: Spacing.three },
+  emptyText: { textAlign: 'center', padding: Spacing.three },
+  expiryList: { gap: Spacing.two },
   expiryCard: {
     borderRadius: Spacing.two,
     padding: Spacing.three,
     borderLeftWidth: 4,
     gap: Spacing.two,
   },
-  expiryCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  expirySeverityBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 2,
-    paddingHorizontal: Spacing.two,
-    borderRadius: Spacing.one,
-  },
-  severityDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  severityText: {
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  expiryDays: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  expiryBody: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
+  expiryCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  expiryDays: { fontSize: 10, fontWeight: '700' },
+  expiryBody: { flexDirection: 'row', alignItems: 'flex-start' },
   expiryNgoTag: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -636,13 +596,8 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     overflow: 'hidden',
   },
-  expiryProgressFill: {
-    height: '100%',
-    borderRadius: 2,
-  },
-  scarcityList: {
-    gap: Spacing.two,
-  },
+  expiryProgressFill: { height: '100%', borderRadius: 2 },
+  scarcityList: { gap: Spacing.two },
   scarcityCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -653,18 +608,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(150,150,150,0.06)',
   },
-  scarcityUnread: {
-    backgroundColor: '#e91e6308',
-  },
-  scarcityHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  scarcityTitle: {
-    fontSize: 14,
-    flexShrink: 1,
-  },
+  scarcityUnread: { backgroundColor: '#e91e6308' },
+  scarcityHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  scarcityTitle: { fontSize: 14, flexShrink: 1 },
   unreadDot: {
     width: 10,
     height: 10,
@@ -673,9 +619,7 @@ const styles = StyleSheet.create({
     marginLeft: Spacing.two,
     marginTop: 4,
   },
-  notifList: {
-    gap: Spacing.one,
-  },
+  notifList: { gap: Spacing.one },
   notifCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -683,14 +627,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.one,
     borderBottomWidth: 1,
   },
-  notifUnread: {
-    borderLeftWidth: 2,
-    borderLeftColor: '#3c87f7',
-    paddingLeft: Spacing.two - 2,
-  },
-  notifLeft: {
-    marginRight: Spacing.two,
-  },
+  notifUnread: { borderLeftWidth: 2, borderLeftColor: '#3c87f7', paddingLeft: Spacing.two - 2 },
+  notifLeft: { marginRight: Spacing.two },
   notifCatIcon: {
     width: 32,
     height: 32,
@@ -698,15 +636,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  notifBody: {
-    flex: 1,
-  },
-  notifTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: Spacing.one,
-  },
+  notifBody: { flex: 1 },
+  notifTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: Spacing.one },
   notifCatBadge: {
     fontSize: 8,
     opacity: 0.5,

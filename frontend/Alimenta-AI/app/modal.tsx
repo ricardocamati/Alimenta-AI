@@ -18,8 +18,9 @@ import * as Location from 'expo-location';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { useStore } from '@/hooks/use-store';
+import { useDoacao } from '@/hooks/useDoacao';
 import { useTheme } from '@/hooks/use-theme';
+import { handleApiError } from '@/utils/errorHandler';
 
 const FOOD_TYPES = ['Fruta/Legume', 'Laticínio', 'Panificação', 'Carne/Proteína', 'Grãos', 'Outros'];
 
@@ -33,8 +34,8 @@ function defaultExpiryDate() {
 }
 
 export default function ModalScreen() {
-  const store = useStore();
   const theme = useTheme();
+  const { createDoacao } = useDoacao();
 
   const [step, setStep] = useState<Step>(1);
   const [foodName, setFoodName] = useState('');
@@ -164,7 +165,7 @@ export default function ModalScreen() {
     }
   }
 
-  function submitDonation() {
+  async function submitDonation() {
     if (!photoAsset) {
       setErrorMsg('Capture uma foto antes de confirmar.');
       return;
@@ -181,31 +182,40 @@ export default function ModalScreen() {
     setErrorMsg('');
     setSubmitting(true);
 
-    setTimeout(() => {
-      try {
-        store.registerDonation({
-          name: foodName.trim(),
-          type: foodType,
-          category,
-          quantity: quantity.trim(),
-          expiryDate,
-          photoUrl: photoAsset.uri,
-          storageConditions,
-          lat: capturedLatitude,
-          lng: capturedLongitude,
-        });
+    try {
+      const formData = new FormData();
+      formData.append('file', {
+        uri: photoAsset.uri,
+        type: 'image/jpeg',
+        name: 'doacao.jpg',
+      } as any);
 
-        setSuccessMsg('Doação registrada com sucesso.');
-        setSubmitting(false);
+      const api = (await import('@/services/api')).default;
+      const uploadRes = await api.post<{ url: string }>(
+        '/doacoes/upload-foto',
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
 
-        setTimeout(() => {
-          router.back();
-        }, 800);
-      } catch (error: any) {
-        setSubmitting(false);
-        setErrorMsg(error?.message || 'Não foi possível registrar a doação.');
-      }
-    }, 700);
+      const categoriaBackend = category === 'Perecível' ? foodType : 'Não-perecíveis';
+
+      await createDoacao({
+        tipo_alimento: foodType,
+        categoria: categoriaBackend,
+        quantidade: parseFloat(quantity.replace(',', '.')) || 1,
+        data_validade: expiryDate,
+        foto_url: uploadRes.url,
+        latitude: capturedLatitude,
+        longitude: capturedLongitude,
+      });
+
+      setSuccessMsg('Doação registrada com sucesso.');
+      setTimeout(() => router.back(), 800);
+    } catch (err) {
+      setErrorMsg(handleApiError(err));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (

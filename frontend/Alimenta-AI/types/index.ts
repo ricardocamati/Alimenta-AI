@@ -145,3 +145,68 @@ export interface HistoricoAtendimentoDTO {
   semana: string;
   quantidade_atendida: number;
 }
+
+export type NotificacaoCategory = 'expiry' | 'scarcity' | 'status' | 'system';
+
+export interface NotificacaoDTO {
+  id: number;
+  user_id: string;
+  user_type: TipoUsuario;
+  title: string;
+  message: string;
+  category: NotificacaoCategory;
+  related_donation_id: number | null;
+  read: boolean;
+  timestamp: string;
+}
+
+export interface OngMeDTO {
+  id: number;
+  cnpj: string;
+  capacidade_atendimento: number;
+  latitude: number;
+  longitude: number;
+  pickup_radius: number | null;
+  accepted_food_types: string[] | null;
+  pickup_schedule: string | null;
+}
+
+export interface AdminUserDTO {
+  id: number;
+  nome: string;
+  email: string;
+  tipo: string;
+  cpf_cnpj: string | null;
+  criado_em: string;
+  ong_id: number | null;
+}
+
+export interface AdminOngDTO {
+  id: number;
+  usuario_id: number;
+  cnpj: string;
+  capacidade_atendimento: number;
+  latitude: number;
+  longitude: number;
+  pickup_radius: number | null;
+  accepted_food_types: string | null;
+  pickup_schedule: string | null;
+  usuario_nome: string | null;
+}
+
+export interface AdminAuditLogDTO {
+  id: number;
+  doacao_id: number;
+  estado_anterior: string;
+  estado_novo: string;
+  timestamp: string;
+  descricao: string | null;
+  doacao_nome: string | null;
+}
+
+export interface WeightsDTO {
+  urgency: number;
+  demand: number;
+  distance: number;
+  updated_at: string | null;
+}

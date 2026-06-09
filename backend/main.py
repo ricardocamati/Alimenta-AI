@@ -1,16 +1,20 @@
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 
+from admin import router as admin_router
 from auth import auth_router
 from config import settings
 from dashboard import dashboard_router
 from doacoes import doacoes_router
 from historico import router as historico_router
+from notifications import router as notifications_router
+from ongs import router as ongs_router
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +176,9 @@ app.include_router(auth_router)
 app.include_router(doacoes_router)
 app.include_router(historico_router)
 app.include_router(dashboard_router)
+app.include_router(ongs_router)
+app.include_router(notifications_router)
+app.include_router(admin_router)
 
 
 @app.get("/")
@@ -209,7 +216,7 @@ async def health_check():
 
     # Check disk
     import shutil
-    total, used, free = shutil.disk_usage("/home/rick/alimenta-ai-clone/backend")
+    total, used, free = shutil.disk_usage(str(Path(__file__).resolve().parent))
     free_gb = free / (1024**3)
     status["disk_free_gb"] = round(free_gb, 2)
     if free_gb < 0.5:

@@ -17,6 +17,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useDashboard } from '@/hooks/useDashboard';
 import { useDoacoesOng } from '@/hooks/useDoacoesOng';
 import { useHistorico } from '@/hooks/useHistorico';
+import { useNgoPreferences } from '@/hooks/useNgoPreferences';
 import { ErrorMessage } from '@/components/ErrorMessage';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing, MaxContentWidth, BottomTabInset } from '@/constants/theme';
@@ -72,6 +73,7 @@ export default function NgoScreen() {
   const { data: dashData, isLoading: loadingDash, error: dashError } = useDashboard();
   const { doacoes, isLoading, error, refresh, atualizarStatus } = useDoacoesOng();
   const { historico, isLoading: isLoadingHist, error: errorHist, refresh: refreshHist, registrar } = useHistorico();
+  const { ong, update: updateOngPrefs } = useNgoPreferences();
   const theme = useTheme();
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -82,6 +84,10 @@ export default function NgoScreen() {
   const [qtdInput, setQtdInput] = useState('');
   const [loadingHist, setLoadingHist] = useState(false);
   const [msgHist, setMsgHist] = useState('');
+  const [capInput, setCapInput] = useState('');
+  const [scheduleInput, setScheduleInput] = useState('');
+  const [savingPrefs, setSavingPrefs] = useState(false);
+  const [msgPrefs, setMsgPrefs] = useState('');
 
   const dash = dashData && 'perfil' in dashData && dashData.perfil === 'ong' ? dashData : null;
 
@@ -211,6 +217,56 @@ export default function NgoScreen() {
           </ThemedView>
         )}
 
+        {/* PREFERENCIAS DA ONG */}
+        {ong && (
+          <ThemedView type="backgroundElement" style={styles.historicoContainer}>
+            <View style={styles.listHeader}>
+              <ThemedText type="smallBold">Preferências de Captação</ThemedText>
+            </View>
+            <ThemedText type="small" themeColor="textSecondary" style={styles.listDesc}>
+              Capacidade de atendimento e horário de coleta da sua ONG.
+            </ThemedText>
+
+            <View style={styles.formRow}>
+              <TextInput
+                style={[styles.formInput, { flex: 1, color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
+                placeholder="Capacidade (kg/semana)"
+                placeholderTextColor={theme.textSecondary}
+                keyboardType="numeric"
+                value={capInput}
+                onChangeText={setCapInput}
+              />
+              <TextInput
+                style={[styles.formInput, { flex: 1, color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
+                placeholder="Horário de coleta"
+                placeholderTextColor={theme.textSecondary}
+                value={scheduleInput}
+                onChangeText={setScheduleInput}
+              />
+              <Pressable
+                style={[styles.btn, { backgroundColor: '#ff9800', flex: 0.6 }]}
+                onPress={handleSavePrefs}
+                disabled={savingPrefs}
+              >
+                <ThemedText type="code" style={styles.btnText}>Salvar</ThemedText>
+              </Pressable>
+            </View>
+
+            {msgPrefs !== '' && (
+              <View style={styles.msgBanner}>
+                <ThemedText type="small" style={{ color: '#4caf50' }}>{msgPrefs}</ThemedText>
+              </View>
+            )}
+
+            {ong.accepted_food_types && ong.accepted_food_types.length > 0 && (
+              <ThemedText type="small" themeColor="textSecondary" style={{ marginTop: Spacing.two }}>
+                Aceita: {ong.accepted_food_types.join(', ')}
+                {ong.pickup_radius ? ` • Raio: ${ong.pickup_radius} km` : ''}
+              </ThemedText>
+            )}
+          </ThemedView>
+        )}
+
         {/* HISTÓRICO: Registrar Atendimento */}
         <ThemedView type="backgroundElement" style={styles.historicoContainer}>
           <View style={styles.listHeader}>
@@ -325,7 +381,32 @@ export default function NgoScreen() {
             const photo = getDonationPhoto(doacao.tipo_alimento);
             const isSelected = selectedId === doacao.id;
             
-            return (
+  React.useEffect(() => {
+    if (ong) {
+      setCapInput(String(ong.capacidade_atendimento));
+      setScheduleInput(ong.pickup_schedule || '');
+    }
+  }, [ong?.capacidade_atendimento, ong?.pickup_schedule]);
+
+  const handleSavePrefs = async () => {
+    if (!ong) return;
+    setSavingPrefs(true);
+    setMsgPrefs('');
+    try {
+      await updateOngPrefs({
+        capacidade_atendimento: parseInt(capInput, 10) || ong.capacidade_atendimento,
+        pickup_schedule: scheduleInput,
+      });
+      setMsgPrefs('Preferências atualizadas!');
+      setTimeout(() => setMsgPrefs(''), 2500);
+    } catch (err) {
+      setMsgPrefs('Erro ao salvar');
+    } finally {
+      setSavingPrefs(false);
+    }
+  };
+
+  return (
               <Pressable 
                 key={doacao.id}
                 onPress={() => {
