@@ -275,7 +275,7 @@ export default function RegisterScreen() {
               />
             )}
           </View>
-          <ThemedText type="title" style={styles.brandTitle}>AlimentAÇÃO</ThemedText>
+          <ThemedText type="title" style={styles.brandTitle}>Alimenta-IA</ThemedText>
           <ThemedText type="small" themeColor="textSecondary" style={styles.brandSubtitle}>
             Inteligência Preditiva no Combate ao Desperdício de Alimentos
           </ThemedText>

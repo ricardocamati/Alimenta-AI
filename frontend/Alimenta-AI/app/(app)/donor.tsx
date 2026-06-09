@@ -420,7 +420,7 @@ export default function DonorScreen() {
             <View style={styles.certDivider} />
 
             <ThemedText type="small" style={styles.certBody}>
-              Certificamos que a empresa <ThemedText type="smallBold">{activeDonorName}</ThemedText> evitou o desperdício de alimentos através do sistema preditivo AlimentAÇÃO.
+              Certificamos que a empresa <ThemedText type="smallBold">{activeDonorName}</ThemedText> evitou o desperdício de alimentos através do sistema preditivo Alimenta-IA.
             </ThemedText>
 
             <View style={styles.certStatsGrid}>
