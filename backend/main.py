@@ -130,7 +130,29 @@ def _get_test_overrides() -> dict:
         return await _mock_user_with_token(token)
 
     async def _mock_current_user_with_ong(token: str = Depends(oauth2_scheme)):
-        return await _mock_user_with_token(token)
+        """Para rotas de ONG: tenta token real; senao fallback para usuario ong (que tem .ong)."""
+        try:
+            payload = decode_access_token(token)
+            user_id = payload.get("sub")
+            if user_id:
+                async with AsyncSessionLocal() as db:
+                    result = await db.execute(
+                        select(Usuario)
+                        .options(selectinload(Usuario.ong))
+                        .where(Usuario.id == int(user_id))
+                    )
+                    user = result.scalar_one_or_none()
+                    if user:
+                        return user
+        except Exception:
+            pass
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(Usuario)
+                .options(selectinload(Usuario.ong))
+                .where(Usuario.email == "ong@teste.com")
+            )
+            return result.scalar_one()
 
     async def _mock_doador(token: str = Depends(oauth2_scheme)):
         try:

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import Svg, { Path, Circle, Line, Text as SvgText, G } from 'react-native-svg';
+import { ThemedText } from '@/components/themed-text';
 
 interface LineChartProps {
   data: { semana: string; quantidade_atendida: number }[];
@@ -9,7 +10,16 @@ interface LineChartProps {
 }
 
 export function LineChart({ data, demandaPrevista, theme }: LineChartProps) {
-  if (!data || data.length === 0) return null;
+  if (!data || data.length < 2) {
+    return (
+      <View style={styles.placeholder}>
+        <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>
+          Dados insuficientes para gerar o gráfico.{'\n'}
+          É necessário histórico de pelo menos 2 semanas.
+        </ThemedText>
+      </View>
+    );
+  }
 
   const width = 320;
   const height = 160;
@@ -22,10 +32,16 @@ export function LineChart({ data, demandaPrevista, theme }: LineChartProps) {
   const maxReal = Math.max(...valores);
   const maxValor = Math.max(maxReal, demandaPrevista) * 1.15;
   const minValor = 0;
+  const range = maxValor - minValor;
 
-  // Helpers de escala
-  const xScale = (index: number) => padding.left + (index / (data.length - 1)) * chartWidth;
-  const yScale = (valor: number) => padding.top + chartHeight - ((valor - minValor) / (maxValor - minValor)) * chartHeight;
+  // Helpers de escala (com guarda contra divisão por zero)
+  const denomX = data.length - 1;
+  const xScale = (index: number) =>
+    padding.left + (index / denomX) * chartWidth;
+  const yScale = (valor: number) =>
+    range === 0
+      ? padding.top + chartHeight / 2
+      : padding.top + chartHeight - ((valor - minValor) / range) * chartHeight;
 
   // Construir path da linha
   const linePath = data.map((d, i) => {
@@ -159,5 +175,11 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     marginVertical: 8,
+  },
+  placeholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 16,
   },
 });
