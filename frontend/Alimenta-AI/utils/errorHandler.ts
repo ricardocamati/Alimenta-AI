@@ -1,6 +1,6 @@
 const ERROR_MESSAGES: Record<string, string> = {
   '401': 'Sessão expirada. Faça login novamente.',
-  '403': 'Você não tem permissão para esta ação.',
+  '403': 'Acesso restrito. Solicite permissão ao administrador.',
   '404': 'Registro não encontrado.',
   '500': 'Erro interno do servidor. Tente novamente.',
   'NETWORK_ERROR': 'Sem conexão com o servidor. Verifique sua internet.',

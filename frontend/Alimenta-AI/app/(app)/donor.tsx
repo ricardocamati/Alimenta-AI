@@ -440,7 +440,7 @@ export default function DonorScreen() {
 
             <View style={styles.certFooter}>
               <ThemedText type="code" style={{ fontSize: 9, textAlign: 'center', opacity: 0.7 }}>
-                Gerado em {new Date().toLocaleDateString('pt-BR')} • Sistema AlimentAÇÃO Preditiva
+                Gerado em {new Date().toLocaleDateString('pt-BR')} • Sistema Alimenta-IA
               </ThemedText>
             </View>
           </ThemedView>
