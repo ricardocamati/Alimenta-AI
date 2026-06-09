@@ -274,7 +274,7 @@ export default function DonorScreen() {
   };
 
   const handleRegisterDonation = async () => {
-    if (!photoAsset) {
+    if (!fotoUrl) {
       setErrorMsg('Capture ou selecione uma foto real do alimento antes de publicar.');
       return;
     }
