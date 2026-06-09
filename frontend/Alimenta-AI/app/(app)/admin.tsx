@@ -22,7 +22,7 @@ import { Spacing, MaxContentWidth, BottomTabInset } from '@/constants/theme';
 
 export default function AdminScreen() {
   const { user, logout } = useAuth();
-  const { data: dashData, isLoading: loadingDash, error: dashError } = useDashboard();
+  const { data: dashData, isLoading: loadingDash, error: dashError } = useDashboard('admin');
   const theme = useTheme();
 
   const { weights, save: saveWeights, retrain: triggerRetrain, isSaving } = useAdminWeights();

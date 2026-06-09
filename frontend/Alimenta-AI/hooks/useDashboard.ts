@@ -4,7 +4,7 @@ import * as dashboardService from '@/services/dashboardService';
 import { handleApiError } from '@/utils/errorHandler';
 import type { DashboardResponseDTO } from '@/types';
 
-export function useDashboard() {
+export function useDashboard(perfil?: 'doador' | 'ong' | 'admin') {
   const [data, setData] = useState<DashboardResponseDTO | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +17,7 @@ export function useDashboard() {
     setError(null);
     setIsLoading(true);
     try {
-      const result = await dashboardService.getDashboard();
+      const result = await dashboardService.getDashboard(perfil);
       setData(result);
     } catch (err) {
       if ((err as { name?: string }).name === 'CanceledError') return;
@@ -25,7 +25,7 @@ export function useDashboard() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [perfil]);
 
   const refresh = useCallback(() => {
     fetchDashboard();
