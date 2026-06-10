@@ -98,7 +98,6 @@ export default function DonorScreen() {
   const [successMsg, setSuccessMsg] = useState('');
 
   // --- OTHER STATES ---
-  const [showCertificate, setShowCertificate] = useState(false);
 
   // Filter notifications for this specific donor (ja vem filtrado do backend pelo user_id)
   const hasLocation = latitude !== null && longitude !== null;
@@ -426,56 +425,6 @@ export default function DonorScreen() {
             <ThemedText type="code" style={styles.kpiLabel}>Em Análise/Coleta</ThemedText>
           </ThemedView>
         </View>
-
-        {/* Social Impact Certificate Trigger */}
-        <Pressable 
-          onPress={() => setShowCertificate(!showCertificate)} 
-          style={styles.certificateTrigger}
-        >
-          <SymbolView name="doc.text.fill" size={20} tintColor="#ffffff" />
-          <ThemedText type="smallBold" style={{ color: '#ffffff', marginLeft: Spacing.two }}>
-            {showCertificate ? 'Ocultar Relatório de Impacto Social' : 'Visualizar Relatório de Impacto Social'}
-          </ThemedText>
-          <SymbolView name={showCertificate ? "chevron.up" : "chevron.down"} size={16} tintColor="#ffffff" />
-        </Pressable>
-
-        {/* Dynamic Social Impact Certificate Mockup */}
-        {showCertificate && (
-          <ThemedView type="backgroundElement" style={styles.certificateCard}>
-            <View style={styles.certHeader}>
-              <SymbolView name="medal.fill" size={32} tintColor="#ffa726" />
-              <ThemedText type="smallBold" style={styles.certTitle}>Selo de Responsabilidade Social</ThemedText>
-              <ThemedText type="code" style={styles.certSerial}>#AEP-{activeDonorId.toUpperCase()}</ThemedText>
-            </View>
-            
-            <View style={styles.certDivider} />
-
-            <ThemedText type="small" style={styles.certBody}>
-              Certificamos que a empresa <ThemedText type="smallBold">{activeDonorName}</ThemedText> evitou o desperdício de alimentos através do sistema preditivo Alimenta-IA.
-            </ThemedText>
-
-            <View style={styles.certStatsGrid}>
-              <View style={styles.certStatCol}>
-                <ThemedText type="subtitle" style={{ color: '#2e7d32', fontSize: 24 }}>{totalWeightKg} kg</ThemedText>
-                <ThemedText type="code" style={{ fontSize: 10 }}>Resíduos Evitados</ThemedText>
-              </View>
-              <View style={styles.certStatCol}>
-                <ThemedText type="subtitle" style={{ color: '#2196f3', fontSize: 24 }}>{Math.round(totalWeightKg * 2.2)}</ThemedText>
-                <ThemedText type="code" style={{ fontSize: 10 }}>Refeições Entregues</ThemedText>
-              </View>
-              <View style={styles.certStatCol}>
-                <ThemedText type="subtitle" style={{ color: '#e91e63', fontSize: 24 }}>{Math.round(totalWeightKg * 1.9)} kg</ThemedText>
-                <ThemedText type="code" style={{ fontSize: 10 }}>CO2 Reduzido</ThemedText>
-              </View>
-            </View>
-
-            <View style={styles.certFooter}>
-              <ThemedText type="code" style={{ fontSize: 9, textAlign: 'center', opacity: 0.7 }}>
-                Gerado em {new Date().toLocaleDateString('pt-BR')} • Sistema Alimenta-IA
-              </ThemedText>
-            </View>
-          </ThemedView>
-        )}
 
         {/* 3-STEP DONATION REGISTRATION */}
         <ThemedView type="backgroundElement" style={styles.formContainer}>
@@ -921,6 +870,7 @@ const styles = StyleSheet.create({
   kpiContainer: {
     flexDirection: 'row',
     gap: Spacing.two,
+    width: '100%',
   },
   kpiCard: {
     flex: 1,
@@ -941,61 +891,6 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     marginTop: 2,
     textAlign: 'center',
-  },
-  certificateTrigger: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#3c87f7',
-    padding: Spacing.three,
-    borderRadius: Spacing.two,
-    justifyContent: 'space-between',
-  },
-  certificateCard: {
-    borderWidth: 2,
-    borderColor: '#ffa72644',
-    borderRadius: Spacing.three,
-    padding: Spacing.four,
-    backgroundColor: '#fffcf5',
-    elevation: 2,
-  },
-  certHeader: {
-    alignItems: 'center',
-    gap: Spacing.one,
-  },
-  certTitle: {
-    fontSize: 16,
-    color: '#e65100',
-    textAlign: 'center',
-  },
-  certSerial: {
-    fontSize: 9,
-    opacity: 0.6,
-  },
-  certDivider: {
-    height: 1,
-    backgroundColor: '#ffa72633',
-    marginVertical: Spacing.three,
-  },
-  certBody: {
-    textAlign: 'center',
-    lineHeight: 20,
-    fontStyle: 'italic',
-    paddingHorizontal: Spacing.two,
-  },
-  certStatsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: Spacing.three,
-    marginBottom: Spacing.two,
-  },
-  certStatCol: {
-    alignItems: 'center',
-  },
-  certFooter: {
-    borderTopWidth: 1,
-    borderTopColor: '#ffa72622',
-    paddingTop: Spacing.two,
-    marginTop: Spacing.two,
   },
   formContainer: {
     borderRadius: Spacing.three,
