@@ -46,6 +46,7 @@ export default function ModalScreen() {
   const [foodType, setFoodType] = useState(FOOD_TYPES[0]);
   const [category, setCategory] = useState<Category>('Perecível');
   const [quantity, setQuantity] = useState('');
+  const [unit, setUnit] = useState<'kg' | 'unidades' | 'litros'>('kg');
   const [expiryDateRaw, setExpiryDateRaw] = useState(defaultExpiryDate());
   const [expiryDateDisplay, setExpiryDateDisplay] = useState(() => toDisplayDate(defaultExpiryDate()));
   const [photoAsset, setPhotoAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
@@ -264,6 +265,7 @@ export default function ModalScreen() {
         tipo_alimento: foodType,
         categoria: categoriaBackend,
         quantidade: parseFloat(quantity.replace(',', '.')) || 1,
+        unidade_medida: unit,
         data_validade: parseBRDate(expiryDateDisplay) || expiryDateRaw,
         foto_url: uploadRes.url,
         latitude: capturedLatitude,
@@ -376,14 +378,29 @@ export default function ModalScreen() {
             </View>
 
             <ThemedText type="smallBold" style={styles.label}>Quantidade</ThemedText>
-            <TextInput
-              value={quantity}
-              onChangeText={setQuantity}
-              placeholder="Ex: 25 kg, 12 unidades"
-              placeholderTextColor={theme.textSecondary}
-              keyboardType="numeric"
-              style={[styles.input, { color: theme.text, borderColor: theme.backgroundSelected }]}
-            />
+            <View style={styles.quantityRow}>
+              <TextInput
+                value={quantity}
+                onChangeText={setQuantity}
+                placeholder="Ex: 10"
+                placeholderTextColor={theme.textSecondary}
+                keyboardType="numeric"
+                style={[styles.quantityInput, { color: theme.text, borderColor: theme.backgroundSelected }]}
+              />
+              <View style={styles.unitSelector}>
+                {(['kg', 'unidades', 'litros'] as const).map(u => (
+                  <Pressable
+                    key={u}
+                    onPress={() => setUnit(u)}
+                    style={[styles.unitChip, unit === u && styles.unitChipActive]}
+                  >
+                    <ThemedText type="small" style={unit === u ? { color: '#ffffff', fontWeight: 'bold' } : { color: theme.textSecondary }}>
+                      {u === 'kg' ? 'kg' : u === 'unidades' ? 'unid.' : 'litros'}
+                    </ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
 
             <Pressable style={styles.primaryButton} onPress={validateStep1}>
               <ThemedText type="smallBold" style={styles.primaryButtonText}>Avançar para câmera e validade</ThemedText>
@@ -634,6 +651,36 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.two,
     paddingHorizontal: Spacing.three,
     fontSize: 15,
+  },
+  quantityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    marginVertical: Spacing.one,
+  },
+  quantityInput: {
+    flex: 1,
+    height: 48,
+    borderWidth: 1,
+    borderRadius: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    fontSize: 15,
+  },
+  unitSelector: {
+    flexDirection: 'row',
+    gap: Spacing.one,
+  },
+  unitChip: {
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Spacing.two,
+    borderWidth: 1,
+    borderColor: '#3c87f7',
+    backgroundColor: 'transparent',
+  },
+  unitChipActive: {
+    backgroundColor: '#ff9800',
+    borderColor: '#ff9800',
   },
   pillsWrap: {
     flexDirection: 'row',

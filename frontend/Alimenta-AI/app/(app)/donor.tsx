@@ -75,6 +75,7 @@ export default function DonorScreen() {
   const [foodType, setFoodType] = useState('Fruta/Legume'); // e.g. Laticínio, Carne, Panificação
   const [category, setCategory] = useState<'Perecível' | 'Não Perecível'>('Perecível');
   const [quantity, setQuantity] = useState('');
+  const [unit, setUnit] = useState<'kg' | 'unidades' | 'litros'>('kg');
 
   // Step 2 States
   const [expiryDateRaw, setExpiryDateRaw] = useState(() => {
@@ -303,6 +304,7 @@ export default function DonorScreen() {
         tipo_alimento: foodName,
         categoria: category === 'Perecível' ? 'perecivel_alto' : 'perecivel_baixo',
         quantidade: parseFloat(quantity) || 0,
+        unidade_medida: unit,
         data_validade: parseBRDate(expiryDateDisplay) || expiryDateRaw,
         foto_url: fotoUrl || '',
         latitude: capturedLatitude,
@@ -316,6 +318,7 @@ export default function DonorScreen() {
       setFoodType('Fruta/Legume');
       setCategory('Perecível');
       setQuantity('');
+      setUnit('kg');
       setStorageConditions('Temperatura Ambiente');
       const tomorrowReset = new Date();
       tomorrowReset.setDate(tomorrowReset.getDate() + 2);
@@ -513,14 +516,33 @@ export default function DonorScreen() {
                 </Pressable>
               </View>
 
-              <ThemedText type="smallBold" style={styles.inputLabel}>Quantidade / Peso Estimado</ThemedText>
-              <TextInput 
-                style={[styles.input, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-                placeholder="Ex: 25 kg, 30 unidades, 15 litros"
-                placeholderTextColor={theme.textSecondary}
-                value={quantity}
-                onChangeText={setQuantity}
-              />
+              <ThemedText type="smallBold" style={styles.inputLabel}>Quantidade</ThemedText>
+              <View style={styles.quantityRow}>
+                <TextInput
+                  style={[styles.quantityInput, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
+                  placeholder="Ex: 10"
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="numeric"
+                  value={quantity}
+                  onChangeText={setQuantity}
+                />
+                <View style={styles.unitSelector}>
+                  {(['kg', 'unidades', 'litros'] as const).map(u => (
+                    <Pressable
+                      key={u}
+                      onPress={() => setUnit(u)}
+                      style={[styles.unitChip, unit === u && styles.unitChipActive]}
+                    >
+                      <ThemedText type="small" style={unit === u ? { color: '#ffffff', fontWeight: 'bold' } : { color: theme.textSecondary }}>
+                        {u === 'kg' ? 'kg' : u === 'unidades' ? 'unid.' : 'litros'}
+                      </ThemedText>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+              <ThemedText type="code" themeColor="textSecondary" style={{ marginTop: Spacing.one }}>
+                Informe a quantidade e selecione a unidade de medida.
+              </ThemedText>
 
               <Pressable style={styles.formNavBtn} onPress={handleNextStep1}>
                 <ThemedText type="smallBold" style={{ color: '#ffffff' }}>Avançar para Etapa 2</ThemedText>
@@ -996,6 +1018,36 @@ const styles = StyleSheet.create({
   toggleBtnText: {
     fontWeight: 'bold',
     fontSize: 13,
+  },
+  quantityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    marginVertical: Spacing.one,
+  },
+  quantityInput: {
+    flex: 1,
+    height: 48,
+    borderWidth: 1,
+    borderRadius: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    fontSize: 15,
+  },
+  unitSelector: {
+    flexDirection: 'row',
+    gap: Spacing.one,
+  },
+  unitChip: {
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Spacing.two,
+    borderWidth: 1,
+    borderColor: '#3c87f7',
+    backgroundColor: 'transparent',
+  },
+  unitChipActive: {
+    backgroundColor: '#ff9800',
+    borderColor: '#ff9800',
   },
   formNavBtn: {
     height: 50,

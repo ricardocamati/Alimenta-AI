@@ -55,6 +55,7 @@ export interface CreateDoacaoDTO {
   tipo_alimento: string;
   categoria: string;
   quantidade: number;
+  unidade_medida?: string;
   data_validade: string;
   foto_url?: string;
   latitude?: number;
