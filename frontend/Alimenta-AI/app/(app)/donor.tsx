@@ -588,7 +588,6 @@ export default function DonorScreen() {
                 value={expiryDateDisplay}
                 onChangeText={(t) => setExpiryDateDisplay(formatDateInput(t))}
                 maxLength={10}
-                keyboardType="numeric"
               />
 
               <ThemedText type="smallBold" style={styles.inputLabel}>Condições Especiais de Armazenamento</ThemedText>

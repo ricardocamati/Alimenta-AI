@@ -272,7 +272,6 @@ export default function NgoScreen() {
               value={semanaInput}
               onChangeText={(t) => setSemanaInput(formatDateInput(t))}
               maxLength={10}
-              keyboardType="numeric"
             />
             <TextInput
               style={[styles.formInput, { flex: 1, color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}

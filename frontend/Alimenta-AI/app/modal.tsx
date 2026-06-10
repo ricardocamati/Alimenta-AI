@@ -433,7 +433,6 @@ export default function ModalScreen() {
               placeholderTextColor={theme.textSecondary}
               style={[styles.input, { color: theme.text, borderColor: theme.backgroundSelected }]}
               maxLength={10}
-              keyboardType="numeric"
             />
 
             <ThemedView type="backgroundSelected" style={styles.infoBox}>
