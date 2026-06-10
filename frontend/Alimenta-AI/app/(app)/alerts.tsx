@@ -15,6 +15,7 @@ import { ThemedView } from '@/components/themed-view';
 import { UrgencyBadge } from '@/components/urgency-badge';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/hooks/useAuth';
+import { toDisplayDate } from '@/utils/dateMask';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useDoacao } from '@/hooks/useDoacao';
 import { useDoacoesOng } from '@/hooks/useDoacoesOng';
@@ -331,7 +332,7 @@ export default function AlertsScreen() {
                         {d.quantity} • {d.donorName ?? '—'} • {d.storageConditions}
                       </ThemedText>
                       <ThemedText type="code" style={{ fontSize: 10, opacity: 0.6, marginTop: 4 }}>
-                        Validade: {d.expiryDate} • Status: {d.status}
+                        Validade: {toDisplayDate(d.expiryDate)} • Status: {d.status}
                       </ThemedText>
                     </View>
                   </View>

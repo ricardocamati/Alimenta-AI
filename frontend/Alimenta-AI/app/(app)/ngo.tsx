@@ -14,7 +14,7 @@ import { SymbolView } from 'expo-symbols';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/hooks/useAuth';
-import { formatDateInput, parseBRDate } from '@/utils/dateMask';
+import { formatDateInput, parseBRDate, toDisplayDate } from '@/utils/dateMask';
 import { useDashboard } from '@/hooks/useDashboard';
 import { useDoacoesOng } from '@/hooks/useDoacoesOng';
 import { useHistorico } from '@/hooks/useHistorico';
@@ -416,7 +416,7 @@ export default function NgoScreen() {
                       <View style={styles.metaDot} />
                       <SymbolView name="calendar" size={11} tintColor={theme.textSecondary} />
                       <ThemedText type="code" style={styles.metaDetail}>
-                        Vence em: {doacao.data_validade}
+                        Vence em: {toDisplayDate(doacao.data_validade)}
                       </ThemedText>
                     </View>
 

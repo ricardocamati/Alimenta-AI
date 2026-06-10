@@ -755,7 +755,7 @@ export default function DonorScreen() {
                       </View>
                       
                       <ThemedText type="code" style={styles.donationCardDesc}>
-                        Qtd: {donation.quantidade} • Validade: {donation.data_validade}
+                        Qtd: {donation.quantidade} • Validade: {toDisplayDate(donation.data_validade)}
                       </ThemedText>
 
                       <View style={styles.donationUrgencyRow}>
