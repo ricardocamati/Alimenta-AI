@@ -19,6 +19,7 @@ import { useDashboard } from '@/hooks/useDashboard';
 import { useDoacoesOng } from '@/hooks/useDoacoesOng';
 import { useHistorico } from '@/hooks/useHistorico';
 import { useNgoPreferences } from '@/hooks/useNgoPreferences';
+import { getImageUrl } from '@/lib/imageUrl';
 import { ErrorMessage } from '@/components/ErrorMessage';
 import { LineChart } from '@/components/LineChart';
 import { useTheme } from '@/hooks/use-theme';
@@ -388,8 +389,8 @@ export default function NgoScreen() {
               >
                 <View style={styles.matchCardRow}>
                   <View style={[styles.emojiCircle, { backgroundColor: photo.color + '22' }]}>
-                    {doacao.foto_url && doacao.foto_url.startsWith('http') ? (
-                      <Image source={{ uri: doacao.foto_url }} style={{ width: 50, height: 50, borderRadius: 25 }} resizeMode="cover" />
+                    {getImageUrl(doacao.foto_url) ? (
+                      <Image source={{ uri: getImageUrl(doacao.foto_url)! }} style={{ width: 50, height: 50, borderRadius: 25 }} resizeMode="cover" />
                     ) : (
                       <ThemedText style={{ fontSize: 28 }}>{photo.emoji}</ThemedText>
                     )}

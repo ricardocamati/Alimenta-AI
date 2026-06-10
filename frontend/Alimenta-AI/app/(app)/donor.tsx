@@ -30,6 +30,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing, MaxContentWidth, BottomTabInset } from '@/constants/theme';
 import type { DoacaoDTO } from '@/types';
+import { getImageUrl } from '@/lib/imageUrl';
 
 // Preset metadata used for seeded donations and fallback cards.
 const FOOD_PHOTOS = [
@@ -339,7 +340,7 @@ export default function DonorScreen() {
   };
 
   const getDonationPhoto = (donation: DoacaoDTO) => {
-    const photoValue = donation.foto_url;
+    const photoValue = getImageUrl(donation.foto_url);
     // Infer photo preset from food type / name using comprehensive keyword matching
     const tipo = (donation.tipo_alimento || '').toLowerCase();
     let photoId = 'vegetables'; // default fallback
