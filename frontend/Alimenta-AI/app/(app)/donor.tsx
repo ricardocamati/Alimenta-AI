@@ -59,12 +59,11 @@ export default function DonorScreen() {
   const activeDonorName = isDonorLoggedIn ? user!.nome : (user?.nome || 'Visitante');
 
   const dash = dashData && 'perfil' in dashData && dashData.perfil === 'doador' ? dashData : null;
-  const minhasDoacoes = doacoes.filter(d => d.doador_id === user?.id);
-  const totalDonationsCount = dash?.total_doacoes || minhasDoacoes.length;
-  const totalWeightKg = minhasDoacoes
+  const totalDonationsCount = dash?.total_doacoes || doacoes.length;
+  const totalWeightKg = doacoes
     .filter(d => ['confirmado', 'coletado', 'notificado', 'matched'].includes(d.status))
     .reduce((acc, d) => acc + d.quantidade, 0);
-  const pendingDonationsCount = minhasDoacoes.filter(d =>
+  const pendingDonationsCount = doacoes.filter(d =>
     ['cadastrado', 'analisado', 'matched', 'notificado'].includes(d.status)
   ).length;
 
@@ -736,7 +735,7 @@ export default function DonorScreen() {
             </ThemedText>
           ) : (
             <View style={styles.donationList}>
-              {minhasDoacoes.map(donation => {
+              {doacoes.map(donation => {
                 const photo = getDonationPhoto(donation);
                 return (
                   <ThemedView key={donation.id} type="backgroundSelected" style={styles.donationCard}>
