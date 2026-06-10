@@ -5,8 +5,8 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
 from sqlalchemy import select
-
 from admin import router as admin_router
 from auth import auth_router
 from config import settings
@@ -203,9 +203,36 @@ app.include_router(notifications_router)
 app.include_router(admin_router)
 
 
+# ── Servir frontend exportado (SPA) ──────────────────────────────────────
+FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "Alimenta-AI" / "dist"
+
 @app.get("/")
 async def root():
+    index = FRONTEND_DIST / "index.html"
+    if index.exists():
+        return HTMLResponse(content=index.read_text())
     return {"message": "Alimenta-IA API"}
+
+
+@app.get("/{path:path}")
+async def serve_spa(path: str):
+    # Arquivos estáticos (CSS, JS, imgs) — tenta servir direto
+    static_file = FRONTEND_DIST / path
+    if static_file.exists() and static_file.is_file():
+        from fastapi.responses import FileResponse
+        return FileResponse(static_file)
+
+    # Páginas HTML (ex: /donor → donor.html)
+    html_file = FRONTEND_DIST / f"{path}.html"
+    if html_file.exists():
+        return HTMLResponse(content=html_file.read_text())
+
+    # Fallback SPA: index.html para qualquer rota frontend
+    index = FRONTEND_DIST / "index.html"
+    if index.exists():
+        return HTMLResponse(content=index.read_text())
+
+    return {"message": "Not found"}
 
 
 @app.get("/health")
