@@ -22,6 +22,7 @@ import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useDoacao } from '@/hooks/useDoacao';
 import { useTheme } from '@/hooks/use-theme';
 import { handleApiError } from '@/utils/errorHandler';
+import { formatDateInput, parseBRDate, toDisplayDate } from '@/utils/dateMask';
 
 const FOOD_TYPES = ['Fruta/Legume', 'Laticínio', 'Panificação', 'Carne/Proteína', 'Grãos', 'Outros'];
 
@@ -43,7 +44,8 @@ export default function ModalScreen() {
   const [foodType, setFoodType] = useState(FOOD_TYPES[0]);
   const [category, setCategory] = useState<Category>('Perecível');
   const [quantity, setQuantity] = useState('');
-  const [expiryDate, setExpiryDate] = useState(defaultExpiryDate());
+  const [expiryDateRaw, setExpiryDateRaw] = useState(defaultExpiryDate());
+  const [expiryDateDisplay, setExpiryDateDisplay] = useState(() => toDisplayDate(defaultExpiryDate()));
   const [photoAsset, setPhotoAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
@@ -82,7 +84,12 @@ export default function ModalScreen() {
   function validateStep2() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const expiry = new Date(expiryDate);
+    const isoDate = parseBRDate(expiryDateDisplay);
+    if (!isoDate) {
+      setErrorMsg('Digite a data no formato DD/MM/AAAA.');
+      return;
+    }
+    const expiry = new Date(isoDate);
 
     if (Number.isNaN(expiry.getTime()) || expiry <= today) {
       setErrorMsg('A data de validade precisa ser futura.');
@@ -251,7 +258,7 @@ export default function ModalScreen() {
         tipo_alimento: foodType,
         categoria: categoriaBackend,
         quantidade: parseFloat(quantity.replace(',', '.')) || 1,
-        data_validade: expiryDate,
+        data_validade: parseBRDate(expiryDateDisplay) || expiryDateRaw,
         foto_url: uploadRes.url,
         latitude: capturedLatitude,
         longitude: capturedLongitude,
@@ -420,11 +427,13 @@ export default function ModalScreen() {
 
             <ThemedText type="smallBold" style={styles.label}>Validade</ThemedText>
             <TextInput
-              value={expiryDate}
-              onChangeText={setExpiryDate}
-              placeholder="AAAA-MM-DD"
+              value={expiryDateDisplay}
+              onChangeText={(t) => setExpiryDateDisplay(formatDateInput(t))}
+              placeholder="DD/MM/AAAA"
               placeholderTextColor={theme.textSecondary}
               style={[styles.input, { color: theme.text, borderColor: theme.backgroundSelected }]}
+              maxLength={10}
+              keyboardType="numeric"
             />
 
             <ThemedView type="backgroundSelected" style={styles.infoBox}>
@@ -494,7 +503,7 @@ export default function ModalScreen() {
               <View style={styles.summaryRow}><ThemedText type="code" themeColor="textSecondary">Tipo</ThemedText><ThemedText type="code">{foodType}</ThemedText></View>
               <View style={styles.summaryRow}><ThemedText type="code" themeColor="textSecondary">Categoria</ThemedText><ThemedText type="code">{category}</ThemedText></View>
               <View style={styles.summaryRow}><ThemedText type="code" themeColor="textSecondary">Quantidade</ThemedText><ThemedText type="code">{quantity}</ThemedText></View>
-              <View style={styles.summaryRow}><ThemedText type="code" themeColor="textSecondary">Validade</ThemedText><ThemedText type="code">{expiryDate}</ThemedText></View>
+              <View style={styles.summaryRow}><ThemedText type="code" themeColor="textSecondary">Validade</ThemedText><ThemedText type="code">{expiryDateDisplay}</ThemedText></View>
               <View style={styles.summaryRow}><ThemedText type="code" themeColor="textSecondary">Armazenamento</ThemedText><ThemedText type="code">{storageConditions}</ThemedText></View>
             </ThemedView>
 

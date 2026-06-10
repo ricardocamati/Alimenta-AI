@@ -19,6 +19,7 @@ import * as Location from 'expo-location';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/hooks/useAuth';
+import { formatDateInput, parseBRDate, toDisplayDate } from '@/utils/dateMask';
 import { useDoacao } from '@/hooks/useDoacao';
 import api from '@/services/api';
 import { useDashboard } from '@/hooks/useDashboard';
@@ -76,12 +77,12 @@ export default function DonorScreen() {
   const [quantity, setQuantity] = useState('');
 
   // Step 2 States
-  const [expiryDate, setExpiryDate] = useState(() => {
-    // Default to tomorrow
+  const [expiryDateRaw, setExpiryDateRaw] = useState(() => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 2);
     return tomorrow.toISOString().split('T')[0];
   });
+  const [expiryDateDisplay, setExpiryDateDisplay] = useState(() => toDisplayDate(expiryDateRaw));
   const [storageConditions, setStorageConditions] = useState('Temperatura Ambiente');
   const [photoAsset, setPhotoAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [fotoUrl, setFotoUrl] = useState<string | null>(null);
@@ -132,7 +133,12 @@ export default function DonorScreen() {
   const handleNextStep2 = async () => {
     const today = new Date();
     today.setHours(0,0,0,0);
-    const expiry = new Date(expiryDate);
+    const isoDate = parseBRDate(expiryDateDisplay);
+    if (!isoDate) {
+      setErrorMsg('Digite a data no formato DD/MM/AAAA.');
+      return;
+    }
+    const expiry = new Date(isoDate);
     
     // RF-08 Expiry Validation
     if (expiry <= today) {
@@ -295,7 +301,7 @@ export default function DonorScreen() {
         tipo_alimento: foodName,
         categoria: category === 'Perecível' ? 'perecivel_alto' : 'perecivel_baixo',
         quantidade: parseFloat(quantity) || 0,
-        data_validade: expiryDate,
+        data_validade: parseBRDate(expiryDateDisplay) || expiryDateRaw,
         foto_url: fotoUrl || '',
         latitude: capturedLatitude,
         longitude: capturedLongitude,
@@ -309,6 +315,16 @@ export default function DonorScreen() {
       setCategory('Perecível');
       setQuantity('');
       setStorageConditions('Temperatura Ambiente');
+      setExpiryDateRaw(() => {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 2);
+        return tomorrow.toISOString().split('T')[0];
+      });
+      setExpiryDateDisplay(toDisplayDate(() => {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 2);
+        return tomorrow.toISOString().split('T')[0];
+      }()));
       setPhotoAsset(null);
       setFotoUrl(null);
       setLatitude(null);
@@ -570,13 +586,15 @@ export default function DonorScreen() {
           {/* FORM - STEP 2: Expiry & real camera capture */}
           {formStep === 2 && (
             <View style={styles.stepWrapper}>
-              <ThemedText type="smallBold" style={styles.inputLabel}>Data de Validade (Validado se Futura - RF-08)</ThemedText>
+              <ThemedText type="smallBold" style={styles.inputLabel}>Data de Validade</ThemedText>
               <TextInput 
                 style={[styles.input, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-                placeholder="AAAA-MM-DD"
+                placeholder="DD/MM/AAAA"
                 placeholderTextColor={theme.textSecondary}
-                value={expiryDate}
-                onChangeText={setExpiryDate}
+                value={expiryDateDisplay}
+                onChangeText={(t) => setExpiryDateDisplay(formatDateInput(t))}
+                maxLength={10}
+                keyboardType="numeric"
               />
 
               <ThemedText type="smallBold" style={styles.inputLabel}>Condições Especiais de Armazenamento</ThemedText>
@@ -696,7 +714,7 @@ export default function DonorScreen() {
                 </View>
                 <View style={{ marginTop: Spacing.one }}>
                   <ThemedText type="small">
-                    Com base no tipo <ThemedText type="smallBold">&quot;{foodType}&quot;</ThemedText> e validade em <ThemedText type="smallBold">{expiryDate}</ThemedText>, o modelo de Random Forest calculou:
+                    Com base no tipo <ThemedText type="smallBold">&quot;{foodType}&quot;</ThemedText> e validade em <ThemedText type="smallBold">{expiryDateDisplay}</ThemedText>, o modelo de Random Forest calculou:
                   </ThemedText>
                   
                   <View style={styles.modelResultRow}>

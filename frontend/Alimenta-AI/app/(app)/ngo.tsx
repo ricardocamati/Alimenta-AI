@@ -14,6 +14,7 @@ import { SymbolView } from 'expo-symbols';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/hooks/useAuth';
+import { formatDateInput, parseBRDate } from '@/utils/dateMask';
 import { useDashboard } from '@/hooks/useDashboard';
 import { useDoacoesOng } from '@/hooks/useDoacoesOng';
 import { useHistorico } from '@/hooks/useHistorico';
@@ -208,7 +209,7 @@ export default function NgoScreen() {
               <ThemedText type="smallBold">Preferências de Captação</ThemedText>
             </View>
             <ThemedText type="small" themeColor="textSecondary" style={styles.listDesc}>
-              Capacidade de atendimento e horário de coleta da sua ONG.
+              Configure quanto sua ONG consegue atender por semana e o melhor horário para receber coletas.
             </ThemedText>
 
             <View style={styles.formRow}>
@@ -266,10 +267,12 @@ export default function NgoScreen() {
           <View style={styles.formRow}>
             <TextInput
               style={[styles.formInput, { flex: 1, color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-              placeholder="AAAA-MM-DD (segunda)"
+              placeholder="DD/MM/AAAA (segunda)"
               placeholderTextColor={theme.textSecondary}
               value={semanaInput}
-              onChangeText={setSemanaInput}
+              onChangeText={(t) => setSemanaInput(formatDateInput(t))}
+              maxLength={10}
+              keyboardType="numeric"
             />
             <TextInput
               style={[styles.formInput, { flex: 1, color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
@@ -285,8 +288,14 @@ export default function NgoScreen() {
                 if (!semanaInput || !qtdInput) return;
                 setLoadingHist(true);
                 setMsgHist('');
+                const isoSemana = parseBRDate(semanaInput);
+                if (!isoSemana) {
+                  setMsgHist('Data inválida. Use DD/MM/AAAA.');
+                  setLoadingHist(false);
+                  return;
+                }
                 const result = await registrar({
-                  semana: semanaInput,
+                  semana: isoSemana,
                   quantidade_atendida: parseInt(qtdInput, 10),
                 });
                 setLoadingHist(false);
