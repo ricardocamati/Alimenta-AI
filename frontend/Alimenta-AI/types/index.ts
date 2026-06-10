@@ -44,6 +44,8 @@ export interface UserDTO {
   cpf_cnpj: string | null;
   endereco: string | null;
   telefone: string | null;
+  latitude: number | null;
+  longitude: number | null;
   criado_em: string;
   ong: ONGDTO | null;
   is_test_mode?: boolean;

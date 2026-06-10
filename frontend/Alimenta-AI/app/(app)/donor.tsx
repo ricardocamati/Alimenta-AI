@@ -87,9 +87,13 @@ export default function DonorScreen() {
   const [photoAsset, setPhotoAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [fotoUrl, setFotoUrl] = useState<string | null>(null);
   const [loadingPhoto, setLoadingPhoto] = useState(false);
-  const [latitude, setLatitude] = useState<number | null>(null);
-  const [longitude, setLongitude] = useState<number | null>(null);
-  const [locationLabel, setLocationLabel] = useState('Localização ainda não capturada');
+  const [latitude, setLatitude] = useState<number | null>(user?.latitude ?? null);
+  const [longitude, setLongitude] = useState<number | null>(user?.longitude ?? null);
+  const [locationLabel, setLocationLabel] = useState(
+    user?.latitude && user?.longitude
+      ? `Lat: ${user.latitude.toFixed(5)} • Lng: ${user.longitude.toFixed(5)}`
+      : 'Localização ainda não capturada'
+  );
   const [loadingLocation, setLoadingLocation] = useState(false);
 
   // Form Submission feedback states

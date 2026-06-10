@@ -20,6 +20,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useDoacao } from '@/hooks/useDoacao';
+import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/use-theme';
 import { handleApiError } from '@/utils/errorHandler';
 import { formatDateInput, parseBRDate, toDisplayDate } from '@/utils/dateMask';
@@ -37,6 +38,7 @@ function defaultExpiryDate() {
 
 export default function ModalScreen() {
   const theme = useTheme();
+  const { user } = useAuth();
   const { createDoacao } = useDoacao();
 
   const [step, setStep] = useState<Step>(1);
@@ -47,9 +49,13 @@ export default function ModalScreen() {
   const [expiryDateRaw, setExpiryDateRaw] = useState(defaultExpiryDate());
   const [expiryDateDisplay, setExpiryDateDisplay] = useState(() => toDisplayDate(defaultExpiryDate()));
   const [photoAsset, setPhotoAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
-  const [latitude, setLatitude] = useState<number | null>(null);
-  const [longitude, setLongitude] = useState<number | null>(null);
-  const [locationLabel, setLocationLabel] = useState('Localização ainda não capturada');
+  const [latitude, setLatitude] = useState<number | null>(user?.latitude ?? null);
+  const [longitude, setLongitude] = useState<number | null>(user?.longitude ?? null);
+  const [locationLabel, setLocationLabel] = useState(
+    user?.latitude && user?.longitude
+      ? `Lat: ${user.latitude.toFixed(5)} • Lng: ${user.longitude.toFixed(5)}`
+      : 'Localização ainda não capturada'
+  );
   const [loadingPhoto, setLoadingPhoto] = useState(false);
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [submitting, setSubmitting] = useState(false);
