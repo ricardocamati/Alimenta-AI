@@ -1,11 +1,11 @@
 // Utilitários de data DD/MM/AAAA ↔ ISO
 export function formatDateInput(raw: string): string {
-  // Remove tudo que não é dígito
   const digits = raw.replace(/\D/g, '');
   let result = '';
-  if (digits.length >= 2) result = digits.slice(0, 2);
-  if (digits.length >= 4) result += '/' + digits.slice(2, 4);
-  if (digits.length >= 8) result += '/' + digits.slice(4, 8);
+  for (let i = 0; i < digits.length && i < 8; i++) {
+    if (i === 2 || i === 4) result += '/';
+    result += digits[i];
+  }
   return result;
 }
 

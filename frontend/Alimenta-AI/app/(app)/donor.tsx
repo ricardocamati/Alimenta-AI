@@ -315,16 +315,10 @@ export default function DonorScreen() {
       setCategory('Perecível');
       setQuantity('');
       setStorageConditions('Temperatura Ambiente');
-      setExpiryDateRaw(() => {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 2);
-        return tomorrow.toISOString().split('T')[0];
-      });
-      setExpiryDateDisplay(toDisplayDate(() => {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 2);
-        return tomorrow.toISOString().split('T')[0];
-      }()));
+      const tomorrowReset = new Date();
+      tomorrowReset.setDate(tomorrowReset.getDate() + 2);
+      setExpiryDateRaw(tomorrowReset.toISOString().split('T')[0]);
+      setExpiryDateDisplay(toDisplayDate(tomorrowReset.toISOString().split('T')[0]));
       setPhotoAsset(null);
       setFotoUrl(null);
       setLatitude(null);
