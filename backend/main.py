@@ -275,6 +275,6 @@ async def serve_spa(path: str):
     # Fallback SPA: index.html para qualquer rota frontend
     index = FRONTEND_DIST / "index.html"
     if index.exists():
-        return HTMLResponse(content=html_file.read_text())
+        return HTMLResponse(content=index.read_text())
 
     return {"message": "Not found"}
