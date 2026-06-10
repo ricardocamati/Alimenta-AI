@@ -166,6 +166,19 @@ export default function AdminScreen() {
             </View>
           </View>
 
+          {(() => {
+            const total = (parseFloat(urgencyWeight) || 0) + (parseFloat(demandWeight) || 0) + (parseFloat(distanceWeight) || 0);
+            const isValid = Math.round(total) === 100;
+            return (
+              <View style={[styles.sumIndicator, { backgroundColor: isValid ? '#2e7d3222' : '#f4433622', borderColor: isValid ? '#2e7d32' : '#f44336' }]} >
+                <SymbolView name={isValid ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"} size={16} tintColor={isValid ? '#2e7d32' : '#f44336'} />
+                <ThemedText type="smallBold" style={{ marginLeft: Spacing.two, color: isValid ? '#2e7d32' : '#f44336' }}>
+                  Soma: {total.toFixed(0)}% {isValid ? '✅ OK' : '⚠️ Deve ser 100%'}
+                </ThemedText>
+              </View>
+            );
+          })()}
+
           <Pressable
             style={[styles.actionBtn, { backgroundColor: '#ff9800', marginTop: Spacing.three }]}
             onPress={handleSaveWeights}
@@ -220,7 +233,7 @@ export default function AdminScreen() {
 
           <View style={styles.adminJobsRow}>
             <Pressable
-              style={[styles.actionBtn, { backgroundColor: '#3c87f7', flex: 1 }]}
+              style={[styles.actionBtn, { backgroundColor: '#ff9800', flex: 1 }]}
               onPress={handleRetrainModels}
               disabled={retraining}
             >
@@ -237,7 +250,7 @@ export default function AdminScreen() {
             </Pressable>
 
             <Pressable
-              style={[styles.actionBtn, { backgroundColor: '#e91e63', flex: 1 }]}
+              style={[styles.actionBtn, { backgroundColor: '#3c87f7', flex: 1 }]}
               onPress={handleTriggerNearExpiryCheck}
               disabled={scanningExpiry}
             >
@@ -403,6 +416,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: Spacing.two,
+  },
+  sumIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    borderRadius: Spacing.two,
+    borderWidth: 1,
+    marginTop: Spacing.two,
   },
   modelStatusGrid: { flexDirection: 'row', gap: Spacing.two, marginBottom: Spacing.two },
   modelStatusBox: { flex: 1, borderRadius: Spacing.two, padding: Spacing.three, gap: 4 },

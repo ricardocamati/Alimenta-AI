@@ -204,14 +204,18 @@ export default function AlertsScreen() {
         </ThemedView>
 
         <ThemedView type="backgroundElement" style={styles.scanningBanner}>
-          <Pressable onPress={handleTriggerExpiry} disabled={scanning} style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Pressable
+            onPress={handleTriggerExpiry}
+            disabled={scanning}
+            style={[styles.reverifyBtn, scanning && styles.reverifyBtnDisabled]}
+          >
             {scanning ? (
-              <ActivityIndicator size="small" color="#3c87f7" />
+              <ActivityIndicator size="small" color="#ffffff" />
             ) : (
-              <SymbolView name="arrow.clockwise" size={16} tintColor="#3c87f7" />
+              <SymbolView name="arrow.clockwise.circle.fill" size={18} tintColor="#ffffff" />
             )}
-            <ThemedText type="small" style={{ marginLeft: Spacing.two, color: '#3c87f7' }}>
-              {scanning ? 'Verificando doações próximas ao vencimento...' : 'Reverificar alertas de vencimento'}
+            <ThemedText type="smallBold" style={{ color: '#ffffff', marginLeft: Spacing.two }}>
+              {scanning ? 'Verificando doações...' : 'Reverificar alertas de vencimento'}
             </ThemedText>
           </Pressable>
         </ThemedView>
@@ -410,9 +414,15 @@ export default function AlertsScreen() {
           </View>
 
           {filteredNotifications.length === 0 ? (
-            <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
-              Nenhuma notificação encontrada com os filtros atuais.
-            </ThemedText>
+            <View style={styles.emptyNotifsBox}>
+              <SymbolView name="bell.slash.fill" size={40} tintColor={theme.textSecondary} />
+              <ThemedText type="smallBold" style={{ marginTop: Spacing.two, opacity: 0.8 }}>
+                Nenhuma notificação no momento
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary" style={{ marginTop: Spacing.one, textAlign: 'center' }}>
+                Quando houver alertas de vencimento, escassez ou mudanças de status, eles aparecerão aqui.
+              </ThemedText>
+            </View>
           ) : (
             <View style={styles.notifList}>
               {filteredNotifications.map(notif => (
@@ -520,6 +530,17 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
     borderLeftColor: '#3c87f7',
   },
+  reverifyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3c87f7',
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    borderRadius: Spacing.two,
+  },
+  reverifyBtnDisabled: {
+    opacity: 0.7,
+  },
   kpiContainer: { flexDirection: 'row', gap: Spacing.one },
   kpiCard: {
     flex: 1,
@@ -571,6 +592,13 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.two },
   cardDesc: { fontSize: 13, lineHeight: 18, marginBottom: Spacing.three },
   emptyText: { textAlign: 'center', padding: Spacing.three },
+  emptyNotifsBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.six,
+    paddingHorizontal: Spacing.four,
+    opacity: 0.7,
+  },
   expiryList: { gap: Spacing.two },
   expiryCard: {
     borderRadius: Spacing.two,
