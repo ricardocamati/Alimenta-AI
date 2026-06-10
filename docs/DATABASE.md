@@ -1,4 +1,4 @@
-# Alimenta.AI — Documentacao do Banco de Dados
+# Alimenta-IA — Documentacao do Banco de Dados
 
 Banco: **SQLite** (`alimenta.db`)  
 ORM: **SQLAlchemy 2.x** (DeclarativeBase)  

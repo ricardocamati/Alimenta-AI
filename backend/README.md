@@ -1,4 +1,4 @@
-# Alimenta.AI — Backend
+# Alimenta-IA — Backend
 
 API do sistema preditivo de redistribuição inteligente de alimentos.
 

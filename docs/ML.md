@@ -1,6 +1,6 @@
-# Alimenta.AI — Documentacao dos Modelos de Machine Learning
+# Alimenta-IA — Documentacao dos Modelos de Machine Learning
 
-O Alimenta.AI utiliza dois modelos de Machine Learning que operam em paralelo:
+O Alimenta-IA utiliza dois modelos de Machine Learning que operam em paralelo:
 
 1. **Modelo de Urgencia** — Classifica o risco de vencimento de alimentos (Random Forest)
 2. **Modelo de Demanda** — Preve a demanda futura de ONGs (Series Temporais com statsforecast)
