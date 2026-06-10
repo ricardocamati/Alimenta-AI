@@ -120,7 +120,7 @@ export default function AdminScreen() {
         <ThemedView type="backgroundElement" style={styles.card}>
           <View style={styles.cardHeader}>
             <SymbolView name="slider.horizontal.3" size={20} tintColor="#ff9800" />
-            <ThemedText type="smallBold" style={{ marginLeft: Spacing.one }}>Ajustar Função de Ponderação do Score (RF-16)</ThemedText>
+            <ThemedText type="smallBold" style={{ marginLeft: Spacing.one }}>Ajustar Função de Ponderação do Score</ThemedText>
           </View>
 
           <ThemedText type="small" themeColor="textSecondary" style={styles.cardDesc}>
@@ -185,7 +185,7 @@ export default function AdminScreen() {
         <ThemedView type="backgroundElement" style={styles.card}>
           <View style={styles.cardHeader}>
             <SymbolView name="brain.head.profile" size={20} tintColor="#9c27b0" />
-            <ThemedText type="smallBold" style={{ marginLeft: Spacing.one }}>Motor de Machine Learning & Jobs (RNF-06)</ThemedText>
+            <ThemedText type="smallBold" style={{ marginLeft: Spacing.one }}>Motor de Machine Learning & Jobs</ThemedText>
           </View>
 
           <View style={styles.modelStatusGrid}>
@@ -247,7 +247,7 @@ export default function AdminScreen() {
                 <>
                   <SymbolView name="bell" size={16} tintColor="#ffffff" />
                   <ThemedText type="code" style={{ color: '#ffffff', fontSize: 11, fontWeight: 'bold' }}>
-                    Checar Alimentos Vencendo (RF-28)
+                    Checar Alimentos Vencendo
                   </ThemedText>
                 </>
               )}
@@ -258,7 +258,7 @@ export default function AdminScreen() {
         <ThemedView type="backgroundElement" style={styles.card}>
           <View style={styles.cardHeader}>
             <SymbolView name="exclamationmark.triangle.fill" size={18} tintColor="#f44336" />
-            <ThemedText type="smallBold" style={{ marginLeft: Spacing.one }}>Alertas Preditivos de Escassez (RF-14)</ThemedText>
+            <ThemedText type="smallBold" style={{ marginLeft: Spacing.one }}>Alertas Preditivos de Escassez</ThemedText>
           </View>
           <ThemedText type="small" themeColor="textSecondary" style={styles.cardDesc}>
             Disparado automaticamente quando a demanda prevista de uma ONG supera o volume de doações ativas destinadas a ela.
@@ -288,7 +288,7 @@ export default function AdminScreen() {
         <ThemedView type="backgroundElement" style={styles.card}>
           <View style={styles.cardHeader}>
             <SymbolView name="doc.plaintext" size={20} tintColor="#2196f3" />
-            <ThemedText type="smallBold" style={{ marginLeft: Spacing.one }}>Logs de Auditoria de Estados (RF-22 / RF-20)</ThemedText>
+            <ThemedText type="smallBold" style={{ marginLeft: Spacing.one }}>Logs de Auditoria de Estados</ThemedText>
           </View>
 
           <ThemedText type="small" themeColor="textSecondary" style={styles.cardDesc}>

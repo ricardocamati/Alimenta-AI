@@ -139,8 +139,7 @@ export default function DonorScreen() {
       return;
     }
     const expiry = new Date(isoDate);
-    
-    // RF-08 Expiry Validation
+
     if (expiry <= today) {
       setErrorMsg('A data de validade deve ser uma data futura.');
       return;
@@ -407,7 +406,7 @@ export default function DonorScreen() {
           </Pressable>
         </ThemedView>
 
-        {/* Dashboard Metrics (RF-23, RF-25) */}
+        {/* Dashboard Metrics */}
         <View style={styles.kpiContainer}>
           <ThemedView type="backgroundElement" style={styles.kpiCard}>
             <SymbolView name="checkmark.circle" size={24} tintColor="#4caf50" />
@@ -428,7 +427,7 @@ export default function DonorScreen() {
           </ThemedView>
         </View>
 
-        {/* Social Impact Certificate Trigger (RF-25) */}
+        {/* Social Impact Certificate Trigger */}
         <Pressable 
           onPress={() => setShowCertificate(!showCertificate)} 
           style={styles.certificateTrigger}
@@ -440,7 +439,7 @@ export default function DonorScreen() {
           <SymbolView name={showCertificate ? "chevron.up" : "chevron.down"} size={16} tintColor="#ffffff" />
         </Pressable>
 
-        {/* Dynamic Social Impact Certificate Mockup (RF-25) */}
+        {/* Dynamic Social Impact Certificate Mockup */}
         {showCertificate && (
           <ThemedView type="backgroundElement" style={styles.certificateCard}>
             <View style={styles.certHeader}>
@@ -478,13 +477,13 @@ export default function DonorScreen() {
           </ThemedView>
         )}
 
-        {/* 3-STEP DONATION REGISTRATION (RNF-10, RF-05, RF-06, RF-07, RF-08, RF-09) */}
+        {/* 3-STEP DONATION REGISTRATION */}
         <ThemedView type="backgroundElement" style={styles.formContainer}>
           <View style={styles.formHeader}>
             <View style={{ flex: 1 }}>
               <ThemedText type="smallBold" style={{ color: '#3c87f7' }}>CADASTRAR NOVA DOAÇÃO</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                Formulário em 3 Etapas Rápidas (Limite RNF-10)
+                Formulário em 3 Etapas Rápidas
               </ThemedText>
             </View>
             {/* Step badges indicator */}
@@ -599,7 +598,7 @@ export default function DonorScreen() {
                 onChangeText={setStorageConditions}
               />
 
-              <ThemedText type="smallBold" style={styles.inputLabel}>Foto do Alimento (Captura por Câmera / Galeria - RF-07)</ThemedText>
+              <ThemedText type="smallBold" style={styles.inputLabel}>Foto do Alimento (Captura por Câmera / Galeria)</ThemedText>
               <ThemedView type="backgroundSelected" style={styles.cameraSimulatorBox}>
                 <View style={styles.inactiveCameraContent}>
                   <View style={styles.photoPreviewBadge}>
@@ -660,7 +659,7 @@ export default function DonorScreen() {
                 <View style={styles.gpsHeaderRow}>
                   <SymbolView name="location.fill" size={24} tintColor="#4caf50" />
                   <View style={{ flex: 1, marginLeft: Spacing.two }}>
-                    <ThemedText type="smallBold">Localização GPS do usuário (RF-06)</ThemedText>
+                    <ThemedText type="smallBold">Localização GPS do usuário</ThemedText>
                     <ThemedText type="code" style={{ fontSize: 9, opacity: 0.6 }}>
                       A latitude e longitude salvas serão as coordenadas atuais do dispositivo.
                     </ThemedText>
@@ -697,7 +696,7 @@ export default function DonorScreen() {
                 </View>
               </ThemedView>
 
-              {/* Predicted Urgency Simulation Preview (RF-10, RF-12) */}
+              {/* Predicted Urgency Simulation Preview */}
               <ThemedView type="backgroundSelected" style={styles.modelPreviewCard}>
                 <View style={styles.modelHeader}>
                   <SymbolView name="brain.head.profile" size={20} tintColor="#9c27b0" />
@@ -719,7 +718,7 @@ export default function DonorScreen() {
                 </View>
               </ThemedView>
 
-              {/* Matching Suggested NGO Preview (RF-17) */}
+              {/* Matching Suggested NGO Preview */}
               <ThemedView type="backgroundSelected" style={styles.modelPreviewCard}>
                 <View style={styles.modelHeader}>
                   <SymbolView name="arrow.triangle.merge" size={20} tintColor="#ff9800" />
