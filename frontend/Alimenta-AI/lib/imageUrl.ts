@@ -1,4 +1,6 @@
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || '';
+const API_BASE = typeof window !== 'undefined' 
+  ? window.location.origin 
+  : (process.env.EXPO_PUBLIC_API_URL || '');
 
 export function getImageUrl(url: string | null | undefined): string | null {
   if (!url) return null;

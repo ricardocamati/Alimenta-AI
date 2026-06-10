@@ -9,7 +9,9 @@ export function getTokenKey(): string {
 }
 
 const api = axios.create({
-  baseURL: process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8001',
+  baseURL: typeof window !== 'undefined'
+    ? window.location.origin
+    : (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8001'),
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
 });
