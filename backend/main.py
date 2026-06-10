@@ -203,38 +203,7 @@ app.include_router(notifications_router)
 app.include_router(admin_router)
 
 
-# ── Servir frontend exportado (SPA) ──────────────────────────────────────
-FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "Alimenta-AI" / "dist"
-
-@app.get("/")
-async def root():
-    index = FRONTEND_DIST / "index.html"
-    if index.exists():
-        return HTMLResponse(content=index.read_text())
-    return {"message": "Alimenta-IA API"}
-
-
-@app.get("/{path:path}")
-async def serve_spa(path: str):
-    # Arquivos estáticos (CSS, JS, imgs) — tenta servir direto
-    static_file = FRONTEND_DIST / path
-    if static_file.exists() and static_file.is_file():
-        from fastapi.responses import FileResponse
-        return FileResponse(static_file)
-
-    # Páginas HTML (ex: /donor → donor.html)
-    html_file = FRONTEND_DIST / f"{path}.html"
-    if html_file.exists():
-        return HTMLResponse(content=html_file.read_text())
-
-    # Fallback SPA: index.html para qualquer rota frontend
-    index = FRONTEND_DIST / "index.html"
-    if index.exists():
-        return HTMLResponse(content=index.read_text())
-
-    return {"message": "Not found"}
-
-
+# ── Health check (deve vir ANTES do catch-all SPA) ─────────────────────
 @app.get("/health")
 async def health_check():
     from database.connection import async_engine
@@ -277,3 +246,35 @@ async def health_check():
     from fastapi.responses import JSONResponse
     code = 200 if healthy else 503
     return JSONResponse(content=status, status_code=code)
+
+
+# ── Servir frontend exportado (SPA) ──────────────────────────────────────
+FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "Alimenta-AI" / "dist"
+
+@app.get("/")
+async def root():
+    index = FRONTEND_DIST / "index.html"
+    if index.exists():
+        return HTMLResponse(content=index.read_text())
+    return {"message": "Alimenta-IA API"}
+
+
+@app.get("/{path:path}")
+async def serve_spa(path: str):
+    # Arquivos estáticos (CSS, JS, imgs) — tenta servir direto
+    static_file = FRONTEND_DIST / path
+    if static_file.exists() and static_file.is_file():
+        from fastapi.responses import FileResponse
+        return FileResponse(static_file)
+
+    # Páginas HTML (ex: /donor → donor.html)
+    html_file = FRONTEND_DIST / f"{path}.html"
+    if html_file.exists():
+        return HTMLResponse(content=html_file.read_text())
+
+    # Fallback SPA: index.html para qualquer rota frontend
+    index = FRONTEND_DIST / "index.html"
+    if index.exists():
+        return HTMLResponse(content=html_file.read_text())
+
+    return {"message": "Not found"}
