@@ -55,11 +55,24 @@ export function useDoacao() {
     fetchDoacoes(false);
   }, [fetchDoacoes]);
 
+  const deleteDoacao = useCallback(async (id: number): Promise<void> => {
+    setError(null);
+    try {
+      await doacaoService.deleteDoacao(id);
+      // Remove da lista local sem precisar refetch (otimista)
+      setDoacoes((prev) => prev.filter((d) => d.id !== id));
+    } catch (err) {
+      const msg = handleApiError(err);
+      setError(msg);
+      throw new Error(msg);
+    }
+  }, []);
+
   useEffect(() => {
     return () => {
       if (abortRef.current) abortRef.current.abort();
     };
   }, []);
 
-  return { doacoes, isLoading, error, hasMore, createDoacao, loadMore, refresh };
+  return { doacoes, isLoading, error, hasMore, createDoacao, deleteDoacao, loadMore, refresh };
 }

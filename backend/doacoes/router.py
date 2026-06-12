@@ -9,7 +9,7 @@ from auth.router import get_current_user, get_current_user_with_ong, require_ong
 from database.connection import async_get_db, AsyncSessionLocal
 from database.models import TipoUsuario, Usuario
 from doacoes.schemas import DoacaoCreate, DoacaoDetailedResponse, DoacaoResponse
-from doacoes.service import buscar_doacao_por_id, criar_doacao, listar_doacoes
+from doacoes.service import buscar_doacao_por_id, criar_doacao, deletar_doacao, listar_doacoes
 from matching.service import calcular_matching
 
 logger = logging.getLogger(__name__)
@@ -77,6 +77,26 @@ async def detalhe_doacao_endpoint(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Doacao nao encontrada",
         )
+    return doacao
+
+
+@router.delete("/{doacao_id}", response_model=DoacaoResponse)
+async def deletar_doacao_endpoint(
+    doacao_id: int,
+    current_user: Usuario = Depends(require_doador),
+    db: AsyncSession = Depends(async_get_db),
+):
+    """Soft delete: muda status para 'cancelado'.
+
+    Apenas o doador dono pode deletar (validado por doador_id no service).
+    """
+    doacao = await deletar_doacao(db, doacao_id, current_user.id)
+    if doacao is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Doacao nao encontrada",
+        )
+    logger.info("Doacao %s cancelada pelo doador %s", doacao_id, current_user.id)
     return doacao
 
 

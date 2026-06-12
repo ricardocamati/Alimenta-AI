@@ -218,6 +218,51 @@ async def atualizar_status_doacao(
     return result2.scalar_one_or_none()
 
 
+async def deletar_doacao(
+    db: AsyncSession,
+    doacao_id: int,
+    doador_id: int,
+) -> Doacao | None:
+    """Soft delete: muda status para 'cancelado'.
+
+    Preserva a linha no banco para manter histórico/dashboard/auditoria
+    (logs AFD, scores de matching, FKs com ON DELETE SET NULL).
+    Retorna None se a doacao nao existe ou nao pertence ao doador.
+    """
+    result = await db.execute(
+        select(Doacao)
+        .options(selectinload(Doacao.logs), selectinload(Doacao.doador))
+        .where(Doacao.id == doacao_id, Doacao.doador_id == doador_id)
+    )
+    doacao = result.scalar_one_or_none()
+    if doacao is None:
+        return None
+
+    # Se ja esta cancelada, idempotente: retorna sem erro
+    if doacao.status == StatusDoacao.cancelado:
+        logger.info("Doacao %s ja estava cancelada (idempotente)", doacao.id)
+        return doacao
+
+    estado_anterior = doacao.status.value
+    doacao.status = StatusDoacao.cancelado
+    log = LogAFD(
+        doacao_id=doacao.id,
+        estado_anterior=estado_anterior,
+        estado_novo=StatusDoacao.cancelado.value,
+        descricao=f"Doacao cancelada/excluida pelo doador (estado anterior: {estado_anterior})",
+    )
+    db.add(log)
+    await db.commit()
+
+    # Recarrega com eager load para serializacao Pydantic
+    result2 = await db.execute(
+        select(Doacao)
+        .options(selectinload(Doacao.logs), selectinload(Doacao.doador))
+        .where(Doacao.id == doacao_id)
+    )
+    return result2.scalar_one()
+
+
 async def _atualizar_historico_confirmacao(db: AsyncSession, doacao: Doacao) -> None:
     """Soma a quantidade da doacao confirmada no historico da semana atual."""
     # Pegar segunda-feira desta semana (ISO week)

@@ -50,7 +50,7 @@ const FOOD_PHOTOS = [
 
 export default function DonorScreen() {
   const { user, logout } = useAuth();
-  const { doacoes, isLoading: loadingDoacoes, error: doacaoError, createDoacao, refresh: refreshDoacoes } = useDoacao();
+  const { doacoes, isLoading: loadingDoacoes, error: doacaoError, createDoacao, deleteDoacao, refresh: refreshDoacoes } = useDoacao();
   const { data: dashData, isLoading: loadingDash, error: dashError, refresh: refreshDash } = useDashboard();
   const { notifs: donorNotifications, markRead: markDonorNotifRead } = useNotifications({ autoRefresh: true, intervalMs: 30000 });
   const theme = useTheme();
@@ -776,6 +776,34 @@ export default function DonorScreen() {
                     <View style={styles.donationDetailsSide}>
                       <View style={styles.donationCardHeader}>
                         <ThemedText type="smallBold" style={{ flex: 1 }}>{donation.tipo_alimento}</ThemedText>
+                        <Pressable
+                          onPress={() => {
+                            Alert.alert(
+                              'Excluir doacao',
+                              `Tem certeza que deseja excluir "${donation.tipo_alimento}"? O registro sera marcado como cancelado.`,
+                              [
+                                { text: 'Cancelar', style: 'cancel' },
+                                {
+                                  text: 'Excluir',
+                                  style: 'destructive',
+                                  onPress: async () => {
+                                    try {
+                                      await deleteDoacao(donation.id);
+                                      await refreshDash();
+                                    } catch (err) {
+                                      Alert.alert('Erro', err instanceof Error ? err.message : 'Falha ao excluir doacao');
+                                    }
+                                  },
+                                },
+                              ]
+                            );
+                          }}
+                          hitSlop={8}
+                          style={({ pressed }) => [styles.deleteDonationBtn, pressed && { opacity: 0.5 }]}
+                          accessibilityLabel="Excluir doacao"
+                        >
+                          <ThemedText style={styles.deleteDonationIcon}>🗑️</ThemedText>
+                        </Pressable>
                         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(donation.status) }]}>
                           <ThemedText type="code" style={styles.statusBadgeText}>{donation.status}</ThemedText>
                         </View>
@@ -1257,6 +1285,14 @@ const styles = StyleSheet.create({
   donationCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  deleteDonationBtn: {
+    padding: 6,
+    marginRight: 6,
+    borderRadius: 6,
+  },
+  deleteDonationIcon: {
+    fontSize: 16,
   },
   statusBadge: {
     paddingVertical: 2,

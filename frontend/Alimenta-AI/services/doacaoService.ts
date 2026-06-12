@@ -20,3 +20,7 @@ export async function updateDoacaoStatus(id: number, status: string, observacao?
 export async function getDoacaoById(id: number): Promise<DoacaoDetailedDTO> {
   return api.get(`/doacoes/${id}`) as Promise<DoacaoDetailedDTO>;
 }
+
+export async function deleteDoacao(id: number): Promise<DoacaoDTO> {
+  return api.delete(`/doacoes/${id}`) as Promise<DoacaoDTO>;
+}
