@@ -94,7 +94,7 @@ export default function DonorScreen() {
   const [locationLabel, setLocationLabel] = useState(
     user?.latitude && user?.longitude
       ? `Lat: ${user.latitude.toFixed(5)} • Lng: ${user.longitude.toFixed(5)}`
-      : 'Localização ainda não capturada'
+      : 'Localização ainda não cadastrada'
   );
   const [loadingLocation, setLoadingLocation] = useState(false);
 
@@ -329,7 +329,7 @@ export default function DonorScreen() {
       setFotoUrl(null);
       setLatitude(null);
       setLongitude(null);
-      setLocationLabel('Localização ainda não capturada');
+      setLocationLabel('Localização ainda não cadastrada');
       setFormStep(1);
       
       setTimeout(() => setSuccessMsg(''), 3000);
@@ -635,14 +635,11 @@ export default function DonorScreen() {
                 <View style={styles.gpsHeaderRow}>
                   <SymbolView name="location.fill" size={24} tintColor="#4caf50" />
                   <View style={{ flex: 1, marginLeft: Spacing.two }}>
-                    <ThemedText type="smallBold">Localização GPS do usuário</ThemedText>
-                    <ThemedText type="code" style={{ fontSize: 9, opacity: 0.6 }}>
-                      A latitude e longitude salvas serão as coordenadas atuais do dispositivo.
-                    </ThemedText>
+                    <ThemedText type="smallBold">Localização do doador</ThemedText>
                   </View>
                   <View style={[styles.gpsStatusBadge, !hasLocation && styles.gpsStatusPending]}>
                     <ThemedText type="code" style={{ color: '#ffffff', fontSize: 10 }}>
-                      {hasLocation ? 'GPS OK' : 'PENDENTE'}
+                      {hasLocation ? 'OK' : 'PENDENTE'}
                     </ThemedText>
                   </View>
                 </View>
@@ -658,7 +655,7 @@ export default function DonorScreen() {
                     <SymbolView name="location.fill" size={16} tintColor="#ffffff" />
                   )}
                   <ThemedText type="smallBold" style={{ color: '#ffffff' }}>
-                    {hasLocation ? 'Atualizar localização' : 'Capturar localização atual'}
+                    {hasLocation ? 'Alterar localização para a atual' : 'Adicionar localização atual'}
                   </ThemedText>
                 </Pressable>
 
@@ -667,7 +664,7 @@ export default function DonorScreen() {
                   <ThemedText type="code" style={styles.locationCoordsText}>
                     {hasLocation
                       ? `Lat: ${latitude?.toFixed(5)} • Lng: ${longitude?.toFixed(5)}`
-                      : 'Nenhuma coordenada capturada ainda.'}
+                      : 'Nenhuma coordenada cadastrada.'}
                   </ThemedText>
                 </View>
               </ThemedView>
