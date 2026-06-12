@@ -136,7 +136,7 @@ async def get_ong_dashboard(db: AsyncSession, user: Usuario) -> DashboardONG:
         .select_from(Doacao)
         .where(
             Doacao.ong_matched_id == ong_id,
-            Doacao.status == StatusDoacao.confirmado,
+            Doacao.status.in_([StatusDoacao.confirmado, StatusDoacao.coletado]),
         )
     ) or 0
 
