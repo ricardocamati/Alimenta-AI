@@ -246,6 +246,7 @@ export default function DonorScreen() {
         data_validade: parseBRDate(expiryDateDisplay) || expiryDateRaw,
         foto_url: fotoUrl || '',
       });
+      refreshDash(); // Atualiza cards de resumo após nova doação
       
       setLoading(false);
       setSuccessMsg(`Doação "${foodName}" cadastrada com sucesso!`);
