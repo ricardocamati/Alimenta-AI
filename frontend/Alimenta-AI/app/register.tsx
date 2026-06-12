@@ -26,7 +26,6 @@ import {
   isValidCEP,
   isValidPhone,
 } from '@/utils/masks';
-import * as Location from 'expo-location';
 
 export default function RegisterScreen() {
   const { user, register } = useAuth();
@@ -60,10 +59,6 @@ export default function RegisterScreen() {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-
-  // GPS lookup
-  const [gpsLoading, setGpsLoading] = useState(false);
-  const [gpsMsg, setGpsMsg] = useState('');
 
   const redirectedRef = useRef(false);
   useEffect(() => {
@@ -113,25 +108,7 @@ export default function RegisterScreen() {
     return () => clearTimeout(t);
   }, [cep, cepStatus, fetchCepData]);
 
-  // Botão "usar minha localização"
-  const useMyLocation = async () => {
-    setGpsLoading(true);
-    setGpsMsg('');
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        setGpsMsg('Permissão negada. Digite o endereço manualmente.');
-        return;
-      }
-      const position = await Location.getCurrentPositionAsync({});
-      setCoords({ lat: position.coords.latitude, lon: position.coords.longitude });
-      setGpsMsg(`Localização capturada: ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`);
-    } catch (e: any) {
-      setGpsMsg('Não foi possível obter localização.');
-    } finally {
-      setGpsLoading(false);
-    }
-  };
+  // Botão "usar minha localização" — removido (a ONG pode usar o CEP)
 
   const buildFullAddress = () =>
     [logradouro, numero, complemento, bairro, cidade, uf, cep]
@@ -464,40 +441,7 @@ export default function RegisterScreen() {
               </View>
             </View>
 
-            {/* Coordenadas (auto via CEP ou manual via GPS) */}
-            {mode === 'ngo' && (
-              <View style={styles.coordBox}>
-                <View style={styles.coordRow}>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Coordenadas: {coords ? `${coords.lat.toFixed(4)}, ${coords.lon.toFixed(4)}` : '(não definidas)'}
-                  </ThemedText>
-                </View>
-                <Pressable
-                  style={[styles.gpsBtn, gpsLoading && { opacity: 0.7 }]}
-                  onPress={useMyLocation}
-                  disabled={gpsLoading}
-                >
-                  {gpsLoading ? (
-                    <ActivityIndicator color="#3c87f7" size="small" />
-                  ) : (
-                    <>
-                      <SymbolView name="location.fill" size={16} tintColor="#3c87f7" />
-                      <ThemedText type="smallBold" style={{ color: '#3c87f7', marginLeft: 6 }}>
-                        Usar minha localização atual
-                      </ThemedText>
-                    </>
-                  )}
-                </Pressable>
-                {gpsMsg !== '' && (
-                  <ThemedText type="code" style={{ color: theme.textSecondary, marginTop: 4 }}>
-                    {gpsMsg}
-                  </ThemedText>
-                )}
-                {fieldErrors.coords && (
-                  <ThemedText type="code" style={styles.errorHint}>{fieldErrors.coords}</ThemedText>
-                )}
-              </View>
-            )}
+            {/* Coordenadas (auto via CEP) — card removido */}
 
             {/* NGO: capacidade */}
             {mode === 'ngo' && (
@@ -594,9 +538,6 @@ const styles = StyleSheet.create({
   row2: { flexDirection: 'row', gap: Spacing.two },
   cepRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   cepStatusBox: { width: 90, alignItems: 'center', justifyContent: 'center' },
-  coordBox: { backgroundColor: 'rgba(60, 135, 247, 0.06)', borderRadius: Spacing.two, padding: Spacing.three, marginTop: Spacing.two },
-  coordRow: { marginBottom: Spacing.two },
-  gpsBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: Spacing.two, borderWidth: 1, borderColor: '#3c87f7' },
   submitBtn: { height: 50, backgroundColor: '#3c87f7', borderRadius: Spacing.two, justifyContent: 'center', alignItems: 'center', marginTop: Spacing.three },
   submitBtnText: { color: '#ffffff', fontSize: 16 },
   loginLink: { alignSelf: 'center', marginTop: Spacing.three, padding: Spacing.two },
