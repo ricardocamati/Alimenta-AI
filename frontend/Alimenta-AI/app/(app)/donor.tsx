@@ -586,33 +586,6 @@ export default function DonorScreen() {
                 </View>
               </ThemedView>
 
-              {/* Matching Suggested NGO Preview */}
-              <ThemedView type="backgroundSelected" style={styles.modelPreviewCard}>
-                <View style={styles.modelHeader}>
-                  <SymbolView name="arrow.triangle.merge" size={20} tintColor="#ff9800" />
-                  <ThemedText type="code" style={{ marginLeft: Spacing.one, color: '#ff9800', fontWeight: 'bold' }}>
-                    Motor de Matching: Melhor Destino Sugerido
-                  </ThemedText>
-                </View>
-                <View style={{ marginTop: Spacing.one }}>
-                  <ThemedText type="small">
-                    Combinando distância, capacidade de atendimento e a demanda futura estimada da ONG (AutoETS/AutoARIMA):
-                  </ThemedText>
-                  <View style={styles.ngoSuggestionBox}>
-                    <SymbolView name="hands.sparkles.fill" size={22} tintColor="#ff9800" />
-                    <View style={{ flex: 1, marginLeft: Spacing.two }}>
-                      <ThemedText type="smallBold">{'Melhor ONG disponível'}</ThemedText>
-                      <ThemedText type="code" style={{ fontSize: 10 }}>
-                        {'Score: 0/100 • Distância: Calculando...'}
-                      </ThemedText>
-                    </View>
-                    <View style={styles.matchScoreBadge}>
-                      <ThemedText type="code" style={{ color: '#ffffff', fontSize: 10 }}>RECOMENDADA</ThemedText>
-                    </View>
-                  </View>
-                </View>
-              </ThemedView>
-
               <View style={styles.formNavRow}>
                 <Pressable style={[styles.formNavBtn, styles.backBtn]} onPress={handlePrevStep}>
                   <SymbolView name="arrow.left" size={16} tintColor="#3c87f7" />
@@ -1042,22 +1015,6 @@ const styles = StyleSheet.create({
   donationUrgencyRow: {
     marginTop: Spacing.one,
     marginBottom: Spacing.one,
-  },
-  ngoSuggestionBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 152, 0, 0.1)',
-    padding: Spacing.two,
-    borderRadius: Spacing.two,
-    marginTop: Spacing.two,
-    borderWidth: 1,
-    borderColor: '#ff980044',
-  },
-  matchScoreBadge: {
-    backgroundColor: '#ff9800',
-    paddingVertical: 3,
-    paddingHorizontal: Spacing.two,
-    borderRadius: Spacing.one,
   },
   errorBanner: {
     backgroundColor: '#f44336',
