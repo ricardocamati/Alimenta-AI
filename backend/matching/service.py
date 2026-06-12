@@ -159,25 +159,11 @@ async def calcular_matching(doacao_id: int, db: AsyncSession) -> None:
         )
     )
     logger.info(
-        "[Matching] Doacao %s: analisado -> matched (ONG %s, score=%.4f)",
+        "[Matching] Doacao %s: analisado -> matched (ONG %s, score=%.4f). "
+        "Aguardando acao manual da ONG para reservar (status=notificado).",
         doacao_id,
         melhor_ong.id,
         melhor_score,
-    )
-
-    doacao.status = StatusDoacao.notificado
-    db.add(
-        LogAFD(
-            doacao_id=doacao_id,
-            estado_anterior=StatusDoacao.matched.value,
-            estado_novo=StatusDoacao.notificado.value,
-            descricao=f"ONG {melhor_ong.id} notificada (simulacao)",
-        )
-    )
-    logger.info(
-        "[Matching] Doacao %s: matched -> notificado (ONG %s notificada)",
-        doacao_id,
-        melhor_ong.id,
     )
 
     await db.commit()
