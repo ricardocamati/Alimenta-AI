@@ -211,7 +211,7 @@ export default function NgoScreen() {
               <ThemedText type="smallBold">Preferências de Captação</ThemedText>
             </View>
             <ThemedText type="small" themeColor="textSecondary" style={styles.listDesc}>
-              Configure quanto sua ONG consegue atender por semana e o melhor horário para receber coletas.
+              Configure quanto sua ONG consegue atender por semana.
             </ThemedText>
 
             <View style={styles.formRow}>
@@ -223,13 +223,7 @@ export default function NgoScreen() {
                 value={capInput}
                 onChangeText={setCapInput}
               />
-              <TextInput
-                style={[styles.formInput, { flex: 1, color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-                placeholder="Horário de coleta"
-                placeholderTextColor={theme.textSecondary}
-                value={scheduleInput}
-                onChangeText={setScheduleInput}
-              />
+              
               <Pressable
                 style={[styles.btn, { backgroundColor: '#ff9800', flex: 0.6 }]}
                 onPress={handleSavePrefs}
