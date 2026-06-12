@@ -576,12 +576,44 @@ export default function DonorScreen() {
                   <ThemedText type="small">
                     Com base no tipo <ThemedText type="smallBold">&quot;{foodType}&quot;</ThemedText> e validade em <ThemedText type="smallBold">{expiryDateDisplay}</ThemedText>, o modelo de Random Forest calculou:
                   </ThemedText>
-                  
+
                   <View style={styles.modelResultRow}>
-                    <UrgencyBadge urgency="alta" />
+                    <UrgencyBadge urgency="critica" />
                     <ThemedText type="code" style={{ fontSize: 11, flex: 1, marginLeft: Spacing.two }}>
-                      Recomendado para coleta imediata em até 48 horas.
+                      Recomendado para coleta imediata em até 24 horas.
                     </ThemedText>
+                  </View>
+                </View>
+              </ThemedView>
+
+              {/* Matching engine preview — top recommended ONG for this donation */}
+              <ThemedView type="backgroundSelected" style={styles.modelPreviewCard}>
+                <View style={styles.modelHeader}>
+                  <SymbolView name="scope" size={20} tintColor="#3c87f7" />
+                  <ThemedText type="code" style={{ marginLeft: Spacing.one, color: '#3c87f7', fontWeight: 'bold' }}>
+                    Motor de Matching: Melhor Destino Sugerido
+                  </ThemedText>
+                </View>
+                <View style={{ marginTop: Spacing.one }}>
+                  <ThemedText type="small">
+                    Avaliamos <ThemedText type="smallBold">2 ONGs</ThemedText> próximas ao seu redor.
+                    A melhor combinação de afinidade de alimento + distância:
+                  </ThemedText>
+
+                  <View style={[styles.modelResultRow, { alignItems: 'flex-start' }]}>
+                    <View style={{ flex: 1 }}>
+                      <ThemedText type="smallBold" style={{ color: '#3c87f7' }}>
+                        Abrigo Esperança
+                      </ThemedText>
+                      <ThemedText type="code" style={{ fontSize: 11, marginTop: 2 }}>
+                        Score: 80/100 • Distância: 70 m
+                      </ThemedText>
+                    </View>
+                    <View style={styles.recommendedBadge}>
+                      <ThemedText type="code" style={{ color: '#ffffff', fontSize: 10, fontWeight: 'bold', letterSpacing: 0.5 }}>
+                        RECOMENDADA
+                      </ThemedText>
+                    </View>
                   </View>
                 </View>
               </ThemedView>
@@ -1011,6 +1043,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: Spacing.two,
+  },
+  recommendedBadge: {
+    backgroundColor: '#f59e0b',
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 4,
+    borderRadius: 4,
+    marginLeft: Spacing.two,
   },
   donationUrgencyRow: {
     marginTop: Spacing.one,
