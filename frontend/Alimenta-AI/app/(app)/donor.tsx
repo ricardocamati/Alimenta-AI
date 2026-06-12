@@ -23,7 +23,6 @@ import { formatDateInput, parseBRDate, toDisplayDate } from '@/utils/dateMask';
 import { useDoacao } from '@/hooks/useDoacao';
 import api from '@/services/api';
 import { useDashboard } from '@/hooks/useDashboard';
-import { useNotifications } from '@/hooks/useNotifications';
 import { UrgencyBadge } from '@/components/urgency-badge';
 import { ErrorMessage } from '@/components/ErrorMessage';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -52,7 +51,6 @@ export default function DonorScreen() {
   const { user, logout } = useAuth();
   const { doacoes, isLoading: loadingDoacoes, error: doacaoError, createDoacao, deleteDoacao, refresh: refreshDoacoes } = useDoacao();
   const { data: dashData, isLoading: loadingDash, error: dashError, refresh: refreshDash } = useDashboard();
-  const { notifs: donorNotifications, markRead: markDonorNotifRead } = useNotifications({ autoRefresh: true, intervalMs: 30000 });
   const theme = useTheme();
 
   const isDonorLoggedIn = !!(user && (user.tipo === 'doador' || user?.is_test_mode));
@@ -851,41 +849,6 @@ export default function DonorScreen() {
           </>
         )}
 
-        {/* NOTIFICATIONS INBOX */}
-        <ThemedView type="backgroundElement" style={styles.notificationsContainer}>
-          <View style={styles.notifHeader}>
-            <SymbolView name="bell.fill" size={18} tintColor="#3c87f7" />
-            <ThemedText type="smallBold" style={{ marginLeft: Spacing.one }}>Avisos e Notificações ({donorNotifications.filter(n => !n.read).length})</ThemedText>
-          </View>
-          
-          {donorNotifications.length === 0 ? (
-            <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center', padding: Spacing.three }}>
-              Nenhum alerta ativo.
-            </ThemedText>
-          ) : (
-            <View style={styles.notifList}>
-              {donorNotifications.map(notif => (
-                <Pressable
-                  key={notif.id}
-                  onPress={() => markDonorNotifRead(notif.id)}
-                  style={[styles.notifCard, !notif.read && styles.notifUnread, { borderBottomColor: theme.backgroundSelected }]}
-                >
-                  <View style={{ flex: 1 }}>
-                    <ThemedText type="smallBold" style={!notif.read ? { color: '#3c87f7' } : undefined}>{notif.title}</ThemedText>
-                    <ThemedText type="small" style={{ fontSize: 13, marginTop: 2 }}>{notif.message}</ThemedText>
-                    <ThemedText type="code" style={{ fontSize: 9, opacity: 0.5, marginTop: 4 }}>
-                      {new Date(notif.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                    </ThemedText>
-                  </View>
-                  {!notif.read && (
-                    <View style={styles.unreadDot} />
-                  )}
-                </Pressable>
-              ))}
-            </View>
-          )}
-        </ThemedView>
-
       </SafeAreaView>
     </ScrollView>
   );
@@ -1323,36 +1286,5 @@ const styles = StyleSheet.create({
     fontSize: 9,
     opacity: 0.5,
     marginTop: 4,
-  },
-  notificationsContainer: {
-    borderRadius: Spacing.three,
-    padding: Spacing.four,
-    elevation: 2,
-  },
-  notifHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.three,
-  },
-  notifList: {
-    gap: Spacing.one,
-  },
-  notifCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: Spacing.two,
-    borderBottomWidth: 1,
-  },
-  notifUnread: {
-    backgroundColor: '#3c87f70b',
-    borderRadius: Spacing.one,
-    paddingHorizontal: Spacing.two,
-  },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#3c87f7',
-    marginLeft: Spacing.two,
   },
 });
