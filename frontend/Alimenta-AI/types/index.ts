@@ -66,6 +66,10 @@ export interface DoacaoDTO {
   id: number;
   doador_id: number;
   doador_nome: string | null;
+  doador_endereco: string | null;
+  doador_latitude: number | null;
+  doador_longitude: number | null;
+  doador_telefone: string | null;
   tipo_alimento: string;
   categoria: string;
   quantidade: number;

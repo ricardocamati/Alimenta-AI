@@ -5,9 +5,20 @@ from pathlib import Path
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 
-from database.models import Doacao, LogAFD, ONG, StatusDoacao, Urgencia, Usuario, HistoricoAtendimento
+from database.models import (
+    CategoriaNotificacao,
+    Doacao,
+    LogAFD,
+    Notificacao,
+    ONG,
+    StatusDoacao,
+    TipoUsuario,
+    Urgencia,
+    Usuario,
+    HistoricoAtendimento,
+)
 from doacoes.schemas import DoacaoCreate
 from ml.predictor import UrgencyPredictor
 
@@ -185,7 +196,11 @@ async def atualizar_status_doacao(
 ) -> Doacao | None:
     result = await db.execute(
         select(Doacao)
-        .options(selectinload(Doacao.logs), selectinload(Doacao.doador))
+        .options(
+            selectinload(Doacao.logs),
+            selectinload(Doacao.doador),
+            joinedload(Doacao.ong_matched).joinedload(ONG.usuario),
+        )
         .where(
             Doacao.id == doacao_id,
             Doacao.ong_matched_id == ong_id,
@@ -209,6 +224,53 @@ async def atualizar_status_doacao(
         descricao=observacao or f"Status atualizado para {novo_status} via API",
     )
     db.add(log)
+
+    # Q5.b: Apenas Reservar (matched->notificado) e Coletado (notificado->coletado).
+    # Q3.a+b: Notificar o doador quando a ONG reserva ou coleta.
+    if (
+        estado_anterior == StatusDoacao.matched.value
+        and status_enum == StatusDoacao.notificado
+        and doacao.doador_id is not None
+    ):
+        ong_nome = doacao.ong_matched.usuario.nome if (doacao.ong_matched and doacao.ong_matched.usuario) else "Uma ONG"
+        db.add(
+            Notificacao(
+                user_id=str(doacao.doador_id),
+                user_type=TipoUsuario.doador,
+                title=f"ONG {ong_nome} reservou sua doacao",
+                message=(
+                    f"Sua doacao de {doacao.tipo_alimento} ({doacao.quantidade} "
+                    f"{doacao.unidade_medida or 'kg'}) foi reservada. "
+                    f"Entre em contato para combinar a coleta."
+                ),
+                category=CategoriaNotificacao.status,
+                related_donation_id=doacao.id,
+                read=False,
+            )
+        )
+        logger.info("Notificacao de reserva enviada ao doador %s (doacao %s)", doacao.doador_id, doacao.id)
+    elif (
+        estado_anterior == StatusDoacao.notificado.value
+        and status_enum == StatusDoacao.coletado
+        and doacao.doador_id is not None
+    ):
+        db.add(
+            Notificacao(
+                user_id=str(doacao.doador_id),
+                user_type=TipoUsuario.doador,
+                title="Sua doacao foi coletada",
+                message=(
+                    f"A ONG coletou sua doacao de {doacao.tipo_alimento} "
+                    f"({doacao.quantidade} {doacao.unidade_medida or 'kg'}). "
+                    f"Obrigado por contribuir!"
+                ),
+                category=CategoriaNotificacao.status,
+                related_donation_id=doacao.id,
+                read=False,
+            )
+        )
+        logger.info("Notificacao de coleta enviada ao doador %s (doacao %s)", doacao.doador_id, doacao.id)
+
     await db.commit()
 
     # Se status confirmado, atualizar historico_semanal
@@ -218,7 +280,11 @@ async def atualizar_status_doacao(
     # Recarrega com eager load para serializacao Pydantic
     result2 = await db.execute(
         select(Doacao)
-        .options(selectinload(Doacao.logs), selectinload(Doacao.doador))
+        .options(
+            selectinload(Doacao.logs),
+            selectinload(Doacao.doador),
+            joinedload(Doacao.ong_matched).joinedload(ONG.usuario),
+        )
         .where(Doacao.id == doacao_id)
     )
     return result2.scalar_one_or_none()

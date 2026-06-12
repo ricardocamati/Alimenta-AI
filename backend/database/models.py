@@ -124,6 +124,23 @@ class Doacao(Base):
     @property
     def doador_nome(self) -> str | None:
         return self.doador.nome if self.doador else None
+
+    @property
+    def doador_endereco(self) -> str | None:
+        return self.doador.endereco if self.doador else None
+
+    @property
+    def doador_latitude(self) -> float | None:
+        return self.doador.latitude if self.doador else None
+
+    @property
+    def doador_longitude(self) -> float | None:
+        return self.doador.longitude if self.doador else None
+
+    @property
+    def doador_telefone(self) -> str | None:
+        return self.doador.telefone if self.doador else None
+
     scores: Mapped[list["ScoreMatching"]] = relationship(
         "ScoreMatching", back_populates="doacao", cascade="all, delete-orphan"
     )

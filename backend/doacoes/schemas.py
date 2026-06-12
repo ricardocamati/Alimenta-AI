@@ -56,6 +56,10 @@ class DoacaoResponse(BaseModel):
     id: int
     doador_id: int
     doador_nome: str | None = None
+    doador_endereco: str | None = None
+    doador_latitude: float | None = None
+    doador_longitude: float | None = None
+    doador_telefone: str | None = None
     tipo_alimento: str
     categoria: str
     quantidade: float

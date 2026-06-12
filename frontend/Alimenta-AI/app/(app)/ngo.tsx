@@ -435,7 +435,24 @@ export default function NgoScreen() {
                 {isSelected && (
                   <View style={styles.actionArea}>
                     <ThemedText type="smallBold">Atualizar Fluxo da Coleta</ThemedText>
-                    
+
+                    {/* Dados do doador para coleta (Q1.a: so no expandido) */}
+                    <View style={styles.doadorInfoBox}>
+                      <ThemedText type="code" style={styles.doadorInfoLabel}>Dados do Doador</ThemedText>
+                      <View style={styles.doadorInfoRow}>
+                        <SymbolView name="location.fill" size={12} tintColor={theme.textSecondary} />
+                        <ThemedText type="code" style={styles.doadorInfoText}>
+                          {doacao.doador_endereco || 'Endereco nao cadastrado pelo doador'}
+                        </ThemedText>
+                      </View>
+                      <View style={styles.doadorInfoRow}>
+                        <SymbolView name="phone.fill" size={12} tintColor={theme.textSecondary} />
+                        <ThemedText type="code" style={styles.doadorInfoText}>
+                          {doacao.doador_telefone || 'Telefone nao cadastrado pelo doador'}
+                        </ThemedText>
+                      </View>
+                    </View>
+
                     <TextInput 
                       style={[styles.noteInput, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
                       placeholder="Observações (ex: Coletado pelo motorista Pedro)"
@@ -471,15 +488,7 @@ export default function NgoScreen() {
                         </Pressable>
                       )}
                       
-                      {doacao.status === 'coletado' && (
-                        <Pressable 
-                          style={[styles.btn, { backgroundColor: '#4caf50' }]}
-                          onPress={() => handleAction(doacao, 'confirmado')}
-                          disabled={loadingAction}
-                        >
-                          <ThemedText type="code" style={styles.btnText}>Confirmar Recebido</ThemedText>
-                        </Pressable>
-                      )}
+                      {/* Q5.b: 'Confirmar Recebido' removido - fluxo agora e Reservar -> Coletado */}
                     </View>
 
                     {loadingAction && <ActivityIndicator style={{ marginTop: 12 }} color="#3c87f7" />}
@@ -523,6 +532,10 @@ const styles = StyleSheet.create({
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   statusText: { fontSize: 10 },
   actionArea: { marginTop: Spacing.three, paddingTop: Spacing.three, borderTopWidth: 1, borderTopColor: '#333' },
+  doadorInfoBox: { marginTop: Spacing.two, padding: Spacing.two, borderRadius: 8, backgroundColor: '#ffffff08', gap: 4 },
+  doadorInfoLabel: { fontSize: 11, fontWeight: '700', opacity: 0.7, marginBottom: 2 },
+  doadorInfoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  doadorInfoText: { fontSize: 11, opacity: 0.85, flex: 1 },
   noteInput: { borderWidth: 1, borderRadius: 10, padding: 10, marginTop: Spacing.two, fontSize: 13 },
   msgBanner: { marginTop: Spacing.two },
   btnRow: { flexDirection: 'row', gap: Spacing.two, marginTop: Spacing.three },
