@@ -635,36 +635,56 @@ export default function DonorScreen() {
                   <View style={{ flex: 1, marginLeft: Spacing.two }}>
                     <ThemedText type="smallBold">Localização do doador</ThemedText>
                   </View>
-                  <View style={[styles.gpsStatusBadge, !hasLocation && styles.gpsStatusPending]}>
-                    <ThemedText type="code" style={{ color: '#ffffff', fontSize: 10 }}>
-                      {hasLocation ? 'OK' : 'PENDENTE'}
-                    </ThemedText>
-                  </View>
                 </View>
 
-                <Pressable
-                  style={styles.locationCaptureBtn}
-                  onPress={captureLocation}
-                  disabled={loadingLocation}
-                >
-                  {loadingLocation ? (
-                    <ActivityIndicator color="#ffffff" size="small" />
-                  ) : (
-                    <SymbolView name="location.fill" size={16} tintColor="#ffffff" />
-                  )}
-                  <ThemedText type="smallBold" style={{ color: '#ffffff' }}>
-                    {hasLocation ? 'Alterar localização para a atual' : 'Adicionar localização atual'}
-                  </ThemedText>
-                </Pressable>
+                {hasLocation ? (
+                  <>
+                    <View style={styles.locationResultBox}>
+                      <ThemedText type="smallBold">📍 Usando localização cadastrada</ThemedText>
+                      <ThemedText type="code" style={[styles.locationCoordsText, { marginTop: 4, opacity: 0.7 }]}>
+                        O endereço e coordenadas do seu perfil serão usados para o matching com ONGs.
+                      </ThemedText>
+                    </View>
+                    <Pressable
+                      style={[styles.locationCaptureBtn, { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#4caf50', marginTop: Spacing.two }]}
+                      onPress={captureLocation}
+                      disabled={loadingLocation}
+                    >
+                      {loadingLocation ? (
+                        <ActivityIndicator color="#4caf50" size="small" />
+                      ) : (
+                        <SymbolView name="arrow.triangle.2.circlepath" size={14} tintColor="#4caf50" />
+                      )}
+                      <ThemedText type="smallBold" style={{ color: '#4caf50' }}>
+                        {loadingLocation ? 'Atualizando…' : 'Alterar localização'}
+                      </ThemedText>
+                    </Pressable>
+                  </>
+                ) : (
+                  <>
+                    <Pressable
+                      style={styles.locationCaptureBtn}
+                      onPress={captureLocation}
+                      disabled={loadingLocation}
+                    >
+                      {loadingLocation ? (
+                        <ActivityIndicator color="#ffffff" size="small" />
+                      ) : (
+                        <SymbolView name="location.fill" size={16} tintColor="#ffffff" />
+                      )}
+                      <ThemedText type="smallBold" style={{ color: '#ffffff' }}>
+                        Adicionar localização atual
+                      </ThemedText>
+                    </Pressable>
 
-                <View style={styles.locationResultBox}>
-                  <ThemedText type="smallBold">{locationLabel}</ThemedText>
-                  <ThemedText type="code" style={styles.locationCoordsText}>
-                    {hasLocation
-                      ? `Lat: ${latitude?.toFixed(5)} • Lng: ${longitude?.toFixed(5)}`
-                      : 'Nenhuma coordenada cadastrada.'}
-                  </ThemedText>
-                </View>
+                    <View style={styles.locationResultBox}>
+                      <ThemedText type="smallBold">{locationLabel}</ThemedText>
+                      <ThemedText type="code" style={styles.locationCoordsText}>
+                        Nenhuma coordenada cadastrada.
+                      </ThemedText>
+                    </View>
+                  </>
+                )}
               </ThemedView>
 
               {/* Predicted Urgency Simulation Preview */}

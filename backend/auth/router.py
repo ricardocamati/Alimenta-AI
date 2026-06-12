@@ -122,6 +122,8 @@ async def me_endpoint(current_user: Usuario = Depends(get_current_user_with_ong)
             "cpf_cnpj": current_user.cpf_cnpj,
             "endereco": current_user.endereco,
             "telefone": current_user.telefone,
+            "latitude": current_user.latitude,
+            "longitude": current_user.longitude,
             "criado_em": current_user.criado_em,
             "ong": current_user.ong,
             "is_test_mode": settings.TEST_MODE,
