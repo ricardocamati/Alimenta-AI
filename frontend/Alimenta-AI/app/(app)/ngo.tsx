@@ -167,8 +167,8 @@ export default function NgoScreen() {
           </View>
         </View>
 
-        {/* ALERT */}
-        {dash?.alerta_escassez && (
+        {/* ALERT - so aparece quando ha escassez ativa (pendencia > 0) */}
+        {dash?.alerta_escassez && (dash?.doacoes_pendentes ?? 0) > 0 && (
           <View style={[styles.alertBanner, { backgroundColor: '#e91e6322' }]}>
             <SymbolView name="exclamationmark.triangle" size={16} tintColor="#e91e63" />
             <ThemedText type="small" style={{ color: '#e91e63', marginLeft: 8 }}>
