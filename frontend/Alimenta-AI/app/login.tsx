@@ -166,7 +166,7 @@ export default function LoginScreen() {
             {loading ? (
               <ActivityIndicator color="#ffffff" size="small" />
             ) : (
-              <ThemedText type="smallBold" style={styles.submitBtnText}>Entrar com Segurança</ThemedText>
+              <ThemedText type="smallBold" style={styles.submitBtnText}>Entrar</ThemedText>
             )}
           </Pressable>
 
