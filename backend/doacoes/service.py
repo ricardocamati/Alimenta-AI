@@ -273,8 +273,9 @@ async def atualizar_status_doacao(
 
     await db.commit()
 
-    # Se status confirmado, atualizar historico_semanal
-    if status_enum == StatusDoacao.confirmado:
+    # Se status coletado, somar no historico_semanal da semana atual
+    # (fluxo atual do frontend e "Reservar -> Coletado" - botao "Confirmar Recebido" foi removido)
+    if status_enum == StatusDoacao.coletado:
         await _atualizar_historico_confirmacao(db, doacao)
 
     # Recarrega com eager load para serializacao Pydantic
