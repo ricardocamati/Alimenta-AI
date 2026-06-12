@@ -8,9 +8,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from auth.router import get_current_user, get_current_user_with_ong, require_ong, require_doador
 from database.connection import async_get_db, AsyncSessionLocal
 from database.models import TipoUsuario, Usuario
-from doacoes.schemas import DoacaoCreate, DoacaoDetailedResponse, DoacaoResponse
+from doacoes.schemas import (
+    DoacaoCreate,
+    DoacaoDetailedResponse,
+    DoacaoResponse,
+    MatchingPreviewRequest,
+    MatchingPreviewResponse,
+    UrgencyPreviewRequest,
+    UrgencyPreviewResponse,
+)
 from doacoes.service import buscar_doacao_por_id, criar_doacao, deletar_doacao, listar_doacoes
-from matching.service import calcular_matching
+from matching.service import calcular_matching, compute_matching_preview
+from ml import predictor as _urgency_predictor
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +62,49 @@ async def criar_doacao_endpoint(
     doacao = await criar_doacao(db, payload, current_user.id)
     background_tasks.add_task(trigger_calcular_matching, doacao.id)
     return doacao
+
+
+@router.post("/preview-matching", response_model=MatchingPreviewResponse)
+async def preview_matching_endpoint(
+    payload: MatchingPreviewRequest,
+    current_user: Usuario = Depends(require_doador),
+    db: AsyncSession = Depends(async_get_db),
+):
+    """Preview do matching SEM persistir. Chamado na Etapa 3 do cadastro
+    para mostrar ao doador qual ONG seria escolhida se ele publicasse agora.
+    """
+    result = await compute_matching_preview(
+        db,
+        tipo_alimento=payload.tipo_alimento,
+        categoria=payload.categoria,
+        quantidade=payload.quantidade,
+        unidade_medida=payload.unidade_medida,
+        latitude=payload.latitude,
+        longitude=payload.longitude,
+    )
+    return MatchingPreviewResponse(**result)
+
+
+@router.post("/preview-urgency", response_model=UrgencyPreviewResponse)
+async def preview_urgency_endpoint(
+    payload: UrgencyPreviewRequest,
+    current_user: Usuario = Depends(require_doador),
+):
+    """Preview da urgência SEM persistir. Chamado na Etapa 3 do cadastro
+    para mostrar ao doador a urgência predita pelo modelo ML.
+    Se o modelo nao estiver treinado, retorna urgencia='indefinida' e
+    modelo_disponivel=False — o front exibe estado honesto em vez de mentir.
+    """
+    urgencia = _urgency_predictor.UrgencyPredictor.predict(
+        tipo_alimento=payload.tipo_alimento,
+        categoria=payload.categoria,
+        dias_ate_vencimento=payload.dias_ate_vencimento,
+        temperatura_celsius=payload.temperatura_celsius,
+    )
+    return UrgencyPreviewResponse(
+        urgencia=urgencia,
+        modelo_disponivel=_urgency_predictor.modelo_carregado(),
+    )
 
 
 @router.get("/", response_model=list[DoacaoResponse])

@@ -3,6 +3,7 @@ import math
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from database.models import Doacao, HistoricoAtendimento, LogAFD, ONG, ScoreMatching, StatusDoacao, Urgencia
 from ml.demand_predictor import DemandPredictor
@@ -38,6 +39,112 @@ def _normalize(valores: list[float]) -> list[float]:
     if mx == mn:
         return [1.0] * len(valores)
     return [(v - mn) / (mx - mn) for v in valores]
+
+
+async def compute_matching_preview(
+    db: AsyncSession,
+    tipo_alimento: str,
+    categoria: str,
+    quantidade: float,
+    unidade_medida: str,
+    latitude: float | None,
+    longitude: float | None,
+    urgencia: Urgencia | None = None,
+) -> dict:
+    """Calcula o matching sem persistir. Retorna dict com a melhor ONG.
+
+    Usado pelo endpoint /doacoes/preview-matching para mostrar preview
+    na Etapa 3 do cadastro, ANTES do doador confirmar e publicar.
+    Reusa exatamente o mesmo algoritmo de calcular_matching(), só não
+    grava em Doacao/ScoreMatching/LogAFD.
+    """
+    result = await db.execute(
+        select(ONG).options(selectinload(ONG.usuario))
+    )
+    ongs = list(result.scalars().all())
+
+    if not ongs:
+        logger.info("[MatchingPreview] Nenhuma ONG disponivel")
+        return {
+            "ong_id": None,
+            "ong_nome": None,
+            "score": None,
+            "distancia_km": None,
+            "total_ongs_avaliadas": 0,
+            "gps_usado_fallback": False,
+        }
+
+    # urgencia_peso usa o default 0.25 (igual matching real) se urgencia for None.
+    # Front pode passar a urgencia predita pra preview mais fiel.
+    if urgencia is not None:
+        urgencia_peso = URGENCY_WEIGHTS.get(urgencia, 0.25)
+    else:
+        # Estimativa simples: se a categoria é perecível, considera 'media' (0.5).
+        categoria_lower = (categoria or "").lower()
+        pereciveis = {"laticinio", "laticínio", "carne", "peixe", "fruta", "verdura", "legume"}
+        urgencia_peso = 0.50 if categoria_lower in pereciveis else 0.25
+
+    gps_fallback = False
+    if latitude is None or longitude is None:
+        logger.warning(
+            "[MatchingPreview] GPS indisponivel, usando (0.0, 0.0) para preview"
+        )
+        latitude = 0.0
+        longitude = 0.0
+        gps_fallback = True
+
+    # Historico real de atendimento (mesma logica do matching real)
+    demandas: list[float] = []
+    for ong in ongs:
+        result = await db.execute(
+            select(HistoricoAtendimento.quantidade_atendida)
+            .where(HistoricoAtendimento.ong_id == ong.id)
+            .order_by(HistoricoAtendimento.semana.desc())
+            .limit(4)
+        )
+        valores = [r[0] for r in result.all()]
+        if len(valores) >= 2:
+            demandas.append(sum(valores) / len(valores))
+        else:
+            demandas.append(DemandPredictor.predict_demand(ong.id))
+
+    distancias = [haversine(latitude, longitude, ong.latitude, ong.longitude) for ong in ongs]
+
+    demandas_norm = _normalize(demandas)
+    distancias_norm = _normalize(distancias)
+
+    scores: list[tuple[ONG, float, float, float, float, float]] = []
+    for i, ong in enumerate(ongs):
+        score = (
+            0.4 * urgencia_peso
+            + 0.4 * demandas_norm[i]
+            - 0.2 * distancias_norm[i]
+        )
+        scores.append((ong, urgencia_peso, demandas_norm[i], distancias[i], distancias_norm[i], score))
+
+    melhor_ong, _, _, distancia_km, _, melhor_score = max(scores, key=lambda x: x[5])
+    score_0_100 = round(melhor_score * 100, 2)
+    # ONG nao tem coluna 'nome' propria — pega do Usuario vinculado
+    ong_nome = melhor_ong.usuario.nome if melhor_ong.usuario else None
+
+    logger.info(
+        "[MatchingPreview] Melhor: ONG %s (%s), score=%.2f, dist=%.1fkm (avaliadas=%d, gps_fallback=%s)",
+        melhor_ong.id,
+        ong_nome,
+        score_0_100,
+        distancia_km,
+        len(ongs),
+        gps_fallback,
+    )
+
+    return {
+        "ong_id": melhor_ong.id,
+        "ong_nome": ong_nome,
+        "score": score_0_100,
+        "distancia_km": round(distancia_km, 2),
+        "total_ongs_avaliadas": len(ongs),
+        "gps_usado_fallback": gps_fallback,
+    }
 
 
 async def calcular_matching(doacao_id: int, db: AsyncSession) -> None:

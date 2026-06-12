@@ -73,3 +73,13 @@ class UrgencyPredictor:
 
 def init_predictor() -> None:
     _load_pipeline()
+
+
+def modelo_carregado() -> bool:
+    """Retorna True se o modelo ML de urgencia esta carregado em memoria.
+
+    O modelo eh carregado 1x no lifespan() da app via init_predictor().
+    Usado pelo endpoint /doacoes/preview-urgency pra sinalizar
+    modelo_disponivel sem expor a variavel privada do modulo.
+    """
+    return _pipeline is not None
