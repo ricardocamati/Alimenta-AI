@@ -1,35 +1,29 @@
 import logging
+import uuid
+from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth.router import get_current_user, get_current_user_with_ong, require_ong
+from auth.router import get_current_user, get_current_user_with_ong, require_ong, require_doador
 from database.connection import async_get_db, AsyncSessionLocal
 from database.models import TipoUsuario, Usuario
-from doacoes.schemas import DoacaoCreate, DoacaoDetailedResponse, DoacaoResponse
-from doacoes.service import buscar_doacao_por_id, criar_doacao, listar_doacoes
-from matching.service import calcular_matching
+from doacoes.schemas import (
+    DoacaoCreate,
+    DoacaoDetailedResponse,
+    DoacaoResponse,
+    MatchingPreviewRequest,
+    MatchingPreviewResponse,
+    UrgencyPreviewRequest,
+    UrgencyPreviewResponse,
+)
+from doacoes.service import buscar_doacao_por_id, criar_doacao, deletar_doacao, listar_doacoes
+from matching.service import calcular_matching, compute_matching_preview
+from ml import predictor as _urgency_predictor
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/doacoes", tags=["doacoes"])
-
-
-def require_doador(
-    current_user: Usuario = Depends(get_current_user),
-) -> Usuario:
-    """Verifica se o usuario autenticado e doador.
-
-    NOTA: Usa get_current_user (sem eager-load de ONG) por performance.
-    Se precisar acessar dados da ONG neste guard, troque para
-    get_current_user_with_ong.
-    """
-    if current_user.tipo != TipoUsuario.doador:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Apenas doadores podem acessar este recurso",
-        )
-    return current_user
 
 
 async def trigger_calcular_matching(doacao_id: int):
@@ -39,6 +33,21 @@ async def trigger_calcular_matching(doacao_id: int):
             await calcular_matching(doacao_id, db)
         except Exception:
             logger.exception("BackgroundTask: calcular_matching(%s) falhou", doacao_id)
+
+
+UPLOAD_DIR = Path(__file__).resolve().parent.parent / "uploads" / "fotos_doacoes"
+
+
+@router.post("/upload-foto")
+async def upload_foto(request: Request, file: UploadFile):
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    ext = Path(file.filename).suffix if file.filename else ".jpg"
+    filename = f"{uuid.uuid4().hex}{ext}"
+    filepath = UPLOAD_DIR / filename
+    content = await file.read()
+    filepath.write_bytes(content)
+    base_url = str(request.base_url).rstrip('/')
+    return {"url": f"{base_url}/uploads/fotos_doacoes/{filename}"}
 
 
 @router.post(
@@ -53,6 +62,49 @@ async def criar_doacao_endpoint(
     doacao = await criar_doacao(db, payload, current_user.id)
     background_tasks.add_task(trigger_calcular_matching, doacao.id)
     return doacao
+
+
+@router.post("/preview-matching", response_model=MatchingPreviewResponse)
+async def preview_matching_endpoint(
+    payload: MatchingPreviewRequest,
+    current_user: Usuario = Depends(require_doador),
+    db: AsyncSession = Depends(async_get_db),
+):
+    """Preview do matching SEM persistir. Chamado na Etapa 3 do cadastro
+    para mostrar ao doador qual ONG seria escolhida se ele publicasse agora.
+    """
+    result = await compute_matching_preview(
+        db,
+        tipo_alimento=payload.tipo_alimento,
+        categoria=payload.categoria,
+        quantidade=payload.quantidade,
+        unidade_medida=payload.unidade_medida,
+        latitude=payload.latitude,
+        longitude=payload.longitude,
+    )
+    return MatchingPreviewResponse(**result)
+
+
+@router.post("/preview-urgency", response_model=UrgencyPreviewResponse)
+async def preview_urgency_endpoint(
+    payload: UrgencyPreviewRequest,
+    current_user: Usuario = Depends(require_doador),
+):
+    """Preview da urgência SEM persistir. Chamado na Etapa 3 do cadastro
+    para mostrar ao doador a urgência predita pelo modelo ML.
+    Se o modelo nao estiver treinado, retorna urgencia='indefinida' e
+    modelo_disponivel=False — o front exibe estado honesto em vez de mentir.
+    """
+    urgencia = _urgency_predictor.UrgencyPredictor.predict(
+        tipo_alimento=payload.tipo_alimento,
+        categoria=payload.categoria,
+        dias_ate_vencimento=payload.dias_ate_vencimento,
+        temperatura_celsius=payload.temperatura_celsius,
+    )
+    return UrgencyPreviewResponse(
+        urgencia=urgencia,
+        modelo_disponivel=_urgency_predictor.modelo_carregado(),
+    )
 
 
 @router.get("/", response_model=list[DoacaoResponse])
@@ -77,6 +129,26 @@ async def detalhe_doacao_endpoint(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Doacao nao encontrada",
         )
+    return doacao
+
+
+@router.delete("/{doacao_id}", response_model=DoacaoResponse)
+async def deletar_doacao_endpoint(
+    doacao_id: int,
+    current_user: Usuario = Depends(require_doador),
+    db: AsyncSession = Depends(async_get_db),
+):
+    """Soft delete: muda status para 'cancelado'.
+
+    Apenas o doador dono pode deletar (validado por doador_id no service).
+    """
+    doacao = await deletar_doacao(db, doacao_id, current_user.id)
+    if doacao is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Doacao nao encontrada",
+        )
+    logger.info("Doacao %s cancelada pelo doador %s", doacao_id, current_user.id)
     return doacao
 
 

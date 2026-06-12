@@ -6,6 +6,7 @@ import {
   View, 
   ActivityIndicator,
   TextInput,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
@@ -13,10 +14,14 @@ import { SymbolView } from 'expo-symbols';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/hooks/useAuth';
+import { formatDateInput, parseBRDate, toDisplayDate } from '@/utils/dateMask';
 import { useDashboard } from '@/hooks/useDashboard';
 import { useDoacoesOng } from '@/hooks/useDoacoesOng';
 import { useHistorico } from '@/hooks/useHistorico';
+import { useNgoPreferences } from '@/hooks/useNgoPreferences';
+import { getImageUrl } from '@/lib/imageUrl';
 import { ErrorMessage } from '@/components/ErrorMessage';
+import { LineChart } from '@/components/LineChart';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing, MaxContentWidth, BottomTabInset } from '@/constants/theme';
 import type { DoacaoDTO } from '@/types';
@@ -68,9 +73,10 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function NgoScreen() {
   const { user, logout } = useAuth();
-  const { data: dashData, isLoading: loadingDash, error: dashError } = useDashboard();
+  const { data: dashData, isLoading: loadingDash, error: dashError, refresh: refreshDash } = useDashboard('ong');
   const { doacoes, isLoading, error, refresh, atualizarStatus } = useDoacoesOng();
   const { historico, isLoading: isLoadingHist, error: errorHist, refresh: refreshHist, registrar } = useHistorico();
+  const { ong, update: updateOngPrefs } = useNgoPreferences();
   const theme = useTheme();
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -81,8 +87,37 @@ export default function NgoScreen() {
   const [qtdInput, setQtdInput] = useState('');
   const [loadingHist, setLoadingHist] = useState(false);
   const [msgHist, setMsgHist] = useState('');
+  const [capInput, setCapInput] = useState('');
+  const [scheduleInput, setScheduleInput] = useState('');
+  const [savingPrefs, setSavingPrefs] = useState(false);
+  const [msgPrefs, setMsgPrefs] = useState('');
 
   const dash = dashData && 'perfil' in dashData && dashData.perfil === 'ong' ? dashData : null;
+
+  React.useEffect(() => {
+    if (ong) {
+      setCapInput(String(ong.capacidade_atendimento));
+      setScheduleInput(ong.pickup_schedule || '');
+    }
+  }, [ong?.capacidade_atendimento, ong?.pickup_schedule]);
+
+  const handleSavePrefs = async () => {
+    if (!ong) return;
+    setSavingPrefs(true);
+    setMsgPrefs('');
+    try {
+      await updateOngPrefs({
+        capacidade_atendimento: parseInt(capInput, 10) || ong.capacidade_atendimento,
+        pickup_schedule: scheduleInput,
+      });
+      setMsgPrefs('Preferências atualizadas!');
+      setTimeout(() => setMsgPrefs(''), 2500);
+    } catch (err) {
+      setMsgPrefs('Erro ao salvar');
+    } finally {
+      setSavingPrefs(false);
+    }
+  };
 
   const handleAction = async (doacao: DoacaoDTO, novoStatus: string) => {
     setLoadingAction(true);
@@ -92,6 +127,7 @@ export default function NgoScreen() {
     if (result) {
       setMsg(`Status atualizado para "${STATUS_LABELS[novoStatus]}" com sucesso!`);
       setNotes('');
+      refreshDash(); // Atualiza cards de resumo (Total Coletados, Em Analise, etc.)
       setTimeout(() => setMsg(''), 3000);
     }
   };
@@ -131,8 +167,8 @@ export default function NgoScreen() {
           </View>
         </View>
 
-        {/* ALERT */}
-        {dash?.alerta_escassez && (
+        {/* ALERT - so aparece quando ha escassez ativa (pendencia > 0) */}
+        {dash?.alerta_escassez && (dash?.doacoes_pendentes ?? 0) > 0 && (
           <View style={[styles.alertBanner, { backgroundColor: '#e91e6322' }]}>
             <SymbolView name="exclamationmark.triangle" size={16} tintColor="#e91e63" />
             <ThemedText type="small" style={{ color: '#e91e63', marginLeft: 8 }}>
@@ -141,72 +177,74 @@ export default function NgoScreen() {
           </View>
         )}
 
-                {/* CHART: Demanda vs Prevista */}
-        {dash?.demanda_prevista_proxima_semana && (
+                {/* CHART: Demanda vs Histórico (LINHA) */}
+        {dash?.historico_semanal && dash.historico_semanal.length > 0 && (
           <ThemedView type="backgroundElement" style={styles.chartContainer}>
             <View style={styles.chartHeader}>
-              <SymbolView name="chart.bar.xaxis" size={18} tintColor="#2196f3" />
+              <SymbolView name="chart.line.uptrend.xyaxis" size={18} tintColor="#2196f3" />
               <ThemedText type="smallBold" style={{ marginLeft: 8 }}>
                 Demanda Prevista vs Histórico
               </ThemedText>
             </View>
-            <View style={styles.chartBody}>
-              <View style={styles.chartYAxis}>
-                <ThemedText type="code" style={styles.yAxisLabel}>{Math.round((dash?.demanda_prevista_proxima_semana || 0) * 1.3)}</ThemedText>
-                <ThemedText type="code" style={styles.yAxisLabel}>{Math.round((dash?.demanda_prevista_proxima_semana || 0) * 0.8)}</ThemedText>
-                <ThemedText type="code" style={styles.yAxisLabel}>{Math.round((dash?.demanda_prevista_proxima_semana || 0) * 0.4)}</ThemedText>
-                <ThemedText type="code" style={styles.yAxisLabel}>0</ThemedText>
-              </View>
-              <View style={styles.chartBarsArea}>
-                {/* Histórico real */}
-                <View style={styles.chartBarCol}>
-                  <View style={styles.barOuter}>
-                    <View 
-                      style={[
-                        styles.barInner, 
-                        styles.barActual, 
-                        { 
-                          height: `${Math.min(
-                            ((dash?.total_kg_recebidos || 0) / ((dash?.demanda_prevista_proxima_semana || 1) * 1.3)) * 100, 
-                            100
-                          )}%` 
-                        }
-                      ]} 
-                    />
-                    <ThemedText type="code" style={styles.barValueLabel}>
-                      {dash?.total_kg_recebidos ?? 0} kg
-                    </ThemedText>
-                  </View>
-                  <ThemedText type="code" style={styles.barLabel}>Recebido</ThemedText>
-                </View>
-                {/* Demanda prevista */}
-                <View style={styles.chartBarCol}>
-                  <View style={styles.barOuter}>
-                    <View 
-                      style={[
-                        styles.barInner, 
-                        styles.barPrediction, 
-                        { height: `${Math.min(((dash?.demanda_prevista_proxima_semana || 0) / ((dash?.demanda_prevista_proxima_semana || 1) * 1.3)) * 100, 100)}%` }
-                      ]} 
-                    />
-                    <ThemedText type="code" style={styles.barValueLabel}>
-                      {Math.round(dash?.demanda_prevista_proxima_semana ?? 0)} kg
-                    </ThemedText>
-                  </View>
-                  <ThemedText type="code" style={styles.barLabel}>Previsto</ThemedText>
-                </View>
-              </View>
-            </View>
+            <LineChart
+              data={dash.historico_semanal}
+              demandaPrevista={dash.demanda_prevista_proxima_semana || 0}
+              theme={theme}
+            />
             <View style={styles.chartLegend}>
               <View style={styles.legendItem}>
                 <View style={[styles.legendBox, { backgroundColor: '#3c87f7' }]} />
                 <ThemedText type="code" style={{ fontSize: 10 }}>Atendimento Real (kg)</ThemedText>
               </View>
               <View style={styles.legendItem}>
-                <View style={[styles.legendBox, { backgroundColor: '#9c27b0' }]} />
+                <View style={[styles.legendBox, { backgroundColor: '#e91e63', borderRadius: 6 }]} />
                 <ThemedText type="code" style={{ fontSize: 10 }}>Demanda Prevista (kg)</ThemedText>
               </View>
             </View>
+          </ThemedView>
+        )}
+
+        {/* PREFERENCIAS DA ONG */}
+        {ong && (
+          <ThemedView type="backgroundElement" style={styles.historicoContainer}>
+            <View style={styles.listHeader}>
+              <ThemedText type="smallBold">Preferências de Captação</ThemedText>
+            </View>
+            <ThemedText type="small" themeColor="textSecondary" style={styles.listDesc}>
+              Configure quanto sua ONG consegue atender por semana.
+            </ThemedText>
+
+            <View style={styles.formRow}>
+              <TextInput
+                style={[styles.formInput, { flex: 1, color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
+                placeholder="Capacidade (kg/semana)"
+                placeholderTextColor={theme.textSecondary}
+                keyboardType="numeric"
+                value={capInput}
+                onChangeText={setCapInput}
+              />
+              
+              <Pressable
+                style={[styles.btn, { backgroundColor: '#ff9800', flex: 0.6 }]}
+                onPress={handleSavePrefs}
+                disabled={savingPrefs}
+              >
+                <ThemedText type="code" style={styles.btnText}>Salvar</ThemedText>
+              </Pressable>
+            </View>
+
+            {msgPrefs !== '' && (
+              <View style={styles.msgBanner}>
+                <ThemedText type="small" style={{ color: '#4caf50' }}>{msgPrefs}</ThemedText>
+              </View>
+            )}
+
+            {ong.accepted_food_types && ong.accepted_food_types.length > 0 && (
+              <ThemedText type="small" themeColor="textSecondary" style={{ marginTop: Spacing.two }}>
+                Aceita: {ong.accepted_food_types.join(', ')}
+                {ong.pickup_radius ? ` • Raio: ${ong.pickup_radius} km` : ''}
+              </ThemedText>
+            )}
           </ThemedView>
         )}
 
@@ -225,10 +263,11 @@ export default function NgoScreen() {
           <View style={styles.formRow}>
             <TextInput
               style={[styles.formInput, { flex: 1, color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-              placeholder="AAAA-MM-DD (segunda)"
+              placeholder="DD/MM/AAAA (segunda)"
               placeholderTextColor={theme.textSecondary}
               value={semanaInput}
-              onChangeText={setSemanaInput}
+              onChangeText={(t) => setSemanaInput(formatDateInput(t))}
+              maxLength={10}
             />
             <TextInput
               style={[styles.formInput, { flex: 1, color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
@@ -244,8 +283,14 @@ export default function NgoScreen() {
                 if (!semanaInput || !qtdInput) return;
                 setLoadingHist(true);
                 setMsgHist('');
+                const isoSemana = parseBRDate(semanaInput);
+                if (!isoSemana) {
+                  setMsgHist('Data inválida. Use DD/MM/AAAA.');
+                  setLoadingHist(false);
+                  return;
+                }
                 const result = await registrar({
-                  semana: semanaInput,
+                  semana: isoSemana,
                   quantidade_atendida: parseInt(qtdInput, 10),
                 });
                 setLoadingHist(false);
@@ -324,7 +369,7 @@ export default function NgoScreen() {
             const photo = getDonationPhoto(doacao.tipo_alimento);
             const isSelected = selectedId === doacao.id;
             
-            return (
+  return (
               <Pressable 
                 key={doacao.id}
                 onPress={() => {
@@ -339,7 +384,11 @@ export default function NgoScreen() {
               >
                 <View style={styles.matchCardRow}>
                   <View style={[styles.emojiCircle, { backgroundColor: photo.color + '22' }]}>
-                    <ThemedText style={{ fontSize: 28 }}>{photo.emoji}</ThemedText>
+                    {getImageUrl(doacao.foto_url) ? (
+                      <Image source={{ uri: getImageUrl(doacao.foto_url)! }} style={{ width: 50, height: 50, borderRadius: 25 }} resizeMode="cover" />
+                    ) : (
+                      <ThemedText style={{ fontSize: 28 }}>{photo.emoji}</ThemedText>
+                    )}
                   </View>
                   <View style={{ flex: 1, gap: 3 }}>
                     <View style={styles.matchHeader}>
@@ -363,7 +412,7 @@ export default function NgoScreen() {
                       <View style={styles.metaDot} />
                       <SymbolView name="calendar" size={11} tintColor={theme.textSecondary} />
                       <ThemedText type="code" style={styles.metaDetail}>
-                        Vence em: {doacao.data_validade}
+                        Vence em: {toDisplayDate(doacao.data_validade)}
                       </ThemedText>
                     </View>
 
@@ -381,7 +430,24 @@ export default function NgoScreen() {
                 {isSelected && (
                   <View style={styles.actionArea}>
                     <ThemedText type="smallBold">Atualizar Fluxo da Coleta</ThemedText>
-                    
+
+                    {/* Dados do doador para coleta (Q1.a: so no expandido) */}
+                    <View style={styles.doadorInfoBox}>
+                      <ThemedText type="code" style={styles.doadorInfoLabel}>Dados do Doador</ThemedText>
+                      <View style={styles.doadorInfoRow}>
+                        <SymbolView name="location.fill" size={12} tintColor={theme.textSecondary} />
+                        <ThemedText type="code" style={styles.doadorInfoText}>
+                          {doacao.doador_endereco || 'Endereco nao cadastrado pelo doador'}
+                        </ThemedText>
+                      </View>
+                      <View style={styles.doadorInfoRow}>
+                        <SymbolView name="phone.fill" size={12} tintColor={theme.textSecondary} />
+                        <ThemedText type="code" style={styles.doadorInfoText}>
+                          {doacao.doador_telefone || 'Telefone nao cadastrado pelo doador'}
+                        </ThemedText>
+                      </View>
+                    </View>
+
                     <TextInput 
                       style={[styles.noteInput, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
                       placeholder="Observações (ex: Coletado pelo motorista Pedro)"
@@ -417,15 +483,7 @@ export default function NgoScreen() {
                         </Pressable>
                       )}
                       
-                      {doacao.status === 'coletado' && (
-                        <Pressable 
-                          style={[styles.btn, { backgroundColor: '#4caf50' }]}
-                          onPress={() => handleAction(doacao, 'confirmado')}
-                          disabled={loadingAction}
-                        >
-                          <ThemedText type="code" style={styles.btnText}>Confirmar Recebido</ThemedText>
-                        </Pressable>
-                      )}
+                      {/* Q5.b: 'Confirmar Recebido' removido - fluxo agora e Reservar -> Coletado */}
                     </View>
 
                     {loadingAction && <ActivityIndicator style={{ marginTop: 12 }} color="#3c87f7" />}
@@ -469,6 +527,10 @@ const styles = StyleSheet.create({
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   statusText: { fontSize: 10 },
   actionArea: { marginTop: Spacing.three, paddingTop: Spacing.three, borderTopWidth: 1, borderTopColor: '#333' },
+  doadorInfoBox: { marginTop: Spacing.two, padding: Spacing.two, borderRadius: 8, backgroundColor: '#ffffff08', gap: 4 },
+  doadorInfoLabel: { fontSize: 11, fontWeight: '700', opacity: 0.7, marginBottom: 2 },
+  doadorInfoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  doadorInfoText: { fontSize: 11, opacity: 0.85, flex: 1 },
   noteInput: { borderWidth: 1, borderRadius: 10, padding: 10, marginTop: Spacing.two, fontSize: 13 },
   msgBanner: { marginTop: Spacing.two },
   btnRow: { flexDirection: 'row', gap: Spacing.two, marginTop: Spacing.three },

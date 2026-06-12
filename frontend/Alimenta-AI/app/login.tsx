@@ -58,18 +58,25 @@ export default function LoginScreen() {
   }, [user]);
 
   const handleLogin = async () => {
-    if (!email || !password) {
+    const e = email.trim();
+    const p = password.trim();
+    if (!e || !p) {
       setErrorMsg('Preencha seu e-mail e senha.');
       return;
     }
     setErrorMsg('');
     setLoading(true);
     try {
-      await login({ email, senha: password });
+      await login({ email: e, senha: p });
       setEmail('');
       setPassword('');
     } catch (err: any) {
-      setErrorMsg(err.message || 'Erro ao fazer login.');
+      const msg = err.message || 'Erro ao fazer login.';
+      if (msg.toLowerCase().includes('401') || msg.toLowerCase().includes('unauthorized') || msg.toLowerCase().includes('sessão expirada')) {
+        setErrorMsg('E-mail ou senha incorretos.');
+      } else {
+        setErrorMsg(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -93,13 +100,17 @@ export default function LoginScreen() {
       <SafeAreaView style={styles.safeArea}>
         <ThemedView style={styles.brandContainer}>
           <View style={styles.logoCircle}>
-            <SymbolView
-              name={(Platform.OS === 'ios' ? 'fork.knife.circle.fill' : 'restaurant') as any}
-              size={48}
-              tintColor="#3c87f7"
-            />
+            {Platform.OS === 'web' ? (
+              <ThemedText style={{ fontSize: 28 }}>🍽️</ThemedText>
+            ) : (
+              <SymbolView
+                name={(Platform.OS === 'ios' ? 'fork.knife.circle.fill' : 'restaurant') as any}
+                size={48}
+                tintColor="#3c87f7"
+              />
+            )}
           </View>
-          <ThemedText type="title" style={styles.brandTitle}>AlimentAÇÃO</ThemedText>
+          <ThemedText type="title" style={styles.brandTitle}>Alimenta-IA</ThemedText>
           <ThemedText type="small" themeColor="textSecondary" style={styles.brandSubtitle}>
             Inteligência Preditiva no Combate ao Desperdício de Alimentos
           </ThemedText>
@@ -123,17 +134,22 @@ export default function LoginScreen() {
             onChangeText={setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
+            autoComplete="email"
+            returnKeyType="next"
+            onSubmitEditing={() => { /* focus next field */ }}
           />
 
-          {/* Password Input */}
           <ThemedText type="smallBold" style={styles.inputLabel}>Senha de Acesso</ThemedText>
           <TextInput
             style={[styles.input, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-            placeholder="******"
+            placeholder="Digite sua senha"
             placeholderTextColor={theme.textSecondary}
             secureTextEntry
             value={password}
             onChangeText={setPassword}
+            autoComplete="current-password"
+            returnKeyType="go"
+            onSubmitEditing={handleLogin}
           />
 
           {/* Forgot Password Button */}
@@ -150,7 +166,7 @@ export default function LoginScreen() {
             {loading ? (
               <ActivityIndicator color="#ffffff" size="small" />
             ) : (
-              <ThemedText type="smallBold" style={styles.submitBtnText}>Entrar com Segurança</ThemedText>
+              <ThemedText type="smallBold" style={styles.submitBtnText}>Entrar</ThemedText>
             )}
           </Pressable>
 
@@ -247,11 +263,18 @@ const styles = StyleSheet.create({
   containerCard: {
     borderRadius: Spacing.four,
     padding: Spacing.four,
-    elevation: 3,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+      },
+      default: {
+        elevation: 3,
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+    }),
     borderWidth: 1,
     borderColor: 'rgba(150, 150, 150, 0.08)',
   },
@@ -315,10 +338,17 @@ const styles = StyleSheet.create({
     maxWidth: 500,
     borderRadius: Spacing.three,
     padding: Spacing.four,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 4px 10px rgba(0, 0, 0, 0.25)',
+      },
+      default: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 10,
+      },
+    }),
   },
   modalHeader: {
     flexDirection: 'row',

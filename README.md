@@ -6,9 +6,9 @@
 
 ## 📋 Sobre o Projeto
 
-O **Alimenta.AI** é uma aplicação web e mobile que combate o desperdício de alimentos e a insegurança alimentar no Brasil por meio de inteligência artificial preditiva. Enquanto aproximadamente **64 milhões de brasileiros** convivem com algum grau de insegurança alimentar, toneladas de alimentos são desperdiçadas anualmente por estabelecimentos comerciais, restaurantes e feiras.
+O **Alimenta-IA** é uma aplicação web e mobile que combate o desperdício de alimentos e a insegurança alimentar no Brasil por meio de inteligência artificial preditiva. Enquanto aproximadamente **64 milhões de brasileiros** convivem com algum grau de insegurança alimentar, toneladas de alimentos são desperdiçadas anualmente por estabelecimentos comerciais, restaurantes e feiras.
 
-Ao contrário de sistemas tradicionais que apenas reagem a doações já publicadas, o Alimenta.AI **prediz necessidades com antecedência** — conectando automaticamente doadores ao receptor certo, no momento certo.
+Ao contrário de sistemas tradicionais que apenas reagem a doações já publicadas, o Alimenta-IA **prediz necessidades com antecedência** — conectando automaticamente doadores ao receptor certo, no momento certo.
 
 ***
 
@@ -38,7 +38,7 @@ O cruzamento dessas previsões gera um **score de prioridade** que determina aut
 
 ```
 ┌───────────────────────────────────────────────────────────┐
-│                    Alimenta.AI                            │
+│                    Alimenta-IA                            │
 ├─────────────────┬─────────────────────────────────────────┤
 │   App Mobile    │           Backend / API                 │
 │  (Doadores e    ├────────────────┬────────────────────────┤

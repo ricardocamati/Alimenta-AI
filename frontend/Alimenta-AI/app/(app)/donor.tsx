@@ -1,32 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  StyleSheet, 
-  TextInput, 
-  Pressable, 
-  ScrollView, 
-  View, 
+import {
+  StyleSheet,
+  TextInput,
+  Pressable,
+  ScrollView,
+  View,
   Image,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/hooks/useAuth';
+import { formatDateInput, parseBRDate, toDisplayDate } from '@/utils/dateMask';
 import { useDoacao } from '@/hooks/useDoacao';
+import api from '@/services/api';
 import { useDashboard } from '@/hooks/useDashboard';
-import { useStore } from '@/hooks/use-store';
 import { UrgencyBadge } from '@/components/urgency-badge';
 import { ErrorMessage } from '@/components/ErrorMessage';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing, MaxContentWidth, BottomTabInset } from '@/constants/theme';
 import type { DoacaoDTO } from '@/types';
+import { getImageUrl } from '@/lib/imageUrl';
 
 // Preset metadata used for seeded donations and fallback cards.
 const FOOD_PHOTOS = [
@@ -46,19 +48,18 @@ const FOOD_PHOTOS = [
 
 export default function DonorScreen() {
   const { user, logout } = useAuth();
-  const { doacoes, isLoading: loadingDoacoes, error: doacaoError, createDoacao, refresh: refreshDoacoes } = useDoacao();
+  const { doacoes, isLoading: loadingDoacoes, error: doacaoError, createDoacao, deleteDoacao, refresh: refreshDoacoes } = useDoacao();
   const { data: dashData, isLoading: loadingDash, error: dashError, refresh: refreshDash } = useDashboard();
-  const store = useStore();
   const theme = useTheme();
 
-  const isDonorLoggedIn = !!(user && user.tipo === 'doador');
+  const isDonorLoggedIn = !!(user && (user.tipo === 'doador' || user?.is_test_mode));
   const activeDonorId = isDonorLoggedIn ? String(user!.id) : '';
   const activeDonorName = isDonorLoggedIn ? user!.nome : (user?.nome || 'Visitante');
 
   const dash = dashData && 'perfil' in dashData && dashData.perfil === 'doador' ? dashData : null;
   const totalDonationsCount = dash?.total_doacoes || doacoes.length;
   const totalWeightKg = doacoes
-    .filter(d => ['confirmado', 'coletado', 'notificado', 'matched'].includes(d.status))
+    .filter(d => ['coletado', 'confirmado'].includes(d.status))
     .reduce((acc, d) => acc + d.quantidade, 0);
   const pendingDonationsCount = doacoes.filter(d =>
     ['cadastrado', 'analisado', 'matched', 'notificado'].includes(d.status)
@@ -72,33 +73,42 @@ export default function DonorScreen() {
   const [foodType, setFoodType] = useState('Fruta/Legume'); // e.g. Laticínio, Carne, Panificação
   const [category, setCategory] = useState<'Perecível' | 'Não Perecível'>('Perecível');
   const [quantity, setQuantity] = useState('');
+  const [unit, setUnit] = useState<'kg' | 'unidades' | 'litros'>('kg');
 
   // Step 2 States
-  const [expiryDate, setExpiryDate] = useState(() => {
-    // Default to tomorrow
+  const [expiryDateRaw, setExpiryDateRaw] = useState(() => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 2);
     return tomorrow.toISOString().split('T')[0];
   });
+  const [expiryDateDisplay, setExpiryDateDisplay] = useState(() => toDisplayDate(expiryDateRaw));
   const [storageConditions, setStorageConditions] = useState('Temperatura Ambiente');
   const [photoAsset, setPhotoAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [fotoUrl, setFotoUrl] = useState<string | null>(null);
   const [loadingPhoto, setLoadingPhoto] = useState(false);
-  const [latitude, setLatitude] = useState<number | null>(null);
-  const [longitude, setLongitude] = useState<number | null>(null);
-  const [locationLabel, setLocationLabel] = useState('Localização ainda não capturada');
-  const [loadingLocation, setLoadingLocation] = useState(false);
 
   // Form Submission feedback states
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  // --- OTHER STATES ---
-  const [showCertificate, setShowCertificate] = useState(false);
-
-  // Filter notifications for this specific donor
-  const donorNotifications = store.notifications.filter(n => n.userId === activeDonorId);
-  const hasLocation = latitude !== null && longitude !== null;
+  const uploadFoto = async (photoAsset: ImagePicker.ImagePickerAsset): Promise<string> => {
+    const formData = new FormData();
+    if (Platform.OS === 'web') {
+      // Web: fetch(uri).blob() necessário para criar File real
+      const blob = await (await fetch(photoAsset.uri)).blob();
+      formData.append('file', blob, 'photo.jpg');
+    } else {
+      // Mobile: React Native usa objeto {uri, type, name}
+      formData.append('file', {
+        uri: photoAsset.uri,
+        type: 'image/jpeg',
+        name: 'photo.jpg',
+      } as any);
+    }
+    const response = await api.post('/doacoes/upload-foto', formData);
+    return response.url;
+  };
 
   const handleNextStep1 = () => {
     if (!foodName || !quantity) {
@@ -109,12 +119,16 @@ export default function DonorScreen() {
     setFormStep(2);
   };
 
-  const handleNextStep2 = () => {
+  const handleNextStep2 = async () => {
     const today = new Date();
     today.setHours(0,0,0,0);
-    const expiry = new Date(expiryDate);
-    
-    // RF-08 Expiry Validation
+    const isoDate = parseBRDate(expiryDateDisplay);
+    if (!isoDate) {
+      setErrorMsg('Digite a data no formato DD/MM/AAAA.');
+      return;
+    }
+    const expiry = new Date(isoDate);
+
     if (expiry <= today) {
       setErrorMsg('A data de validade deve ser uma data futura.');
       return;
@@ -124,7 +138,17 @@ export default function DonorScreen() {
       return;
     }
     setErrorMsg('');
-    setFormStep(3);
+    setLoading(true);
+    try {
+      const url = await uploadFoto(photoAsset);
+      setFotoUrl(url);
+      setLoading(false);
+      setFormStep(3);
+    } catch (err: any) {
+      console.error('Erro upload foto:', err?.message || err);
+      setLoading(false);
+      setErrorMsg('Erro ao fazer upload da foto. Tente novamente.');
+    }
   };
 
   const handlePrevStep = () => {
@@ -145,7 +169,7 @@ export default function DonorScreen() {
       }
 
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ImagePicker.MediaType.Images,
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.85,
@@ -162,6 +186,21 @@ export default function DonorScreen() {
   };
 
   const pickPhotoFromLibrary = async () => {
+    if (Platform.OS === 'web') {
+      // Fallback nativo HTML file picker para web
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = async () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        const uri = URL.createObjectURL(file);
+        setPhotoAsset({ uri, width: 0, height: 0, type: 'image' } as any);
+      };
+      input.click();
+      return;
+    }
+
     try {
       setLoadingPhoto(true);
       setErrorMsg('');
@@ -173,7 +212,7 @@ export default function DonorScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ImagePicker.MediaType.Images,
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.85,
@@ -189,56 +228,9 @@ export default function DonorScreen() {
     }
   };
 
-  const captureLocation = async () => {
-    try {
-      setLoadingLocation(true);
-      setErrorMsg('');
-
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (!permission.granted) {
-        setErrorMsg('Permissão de localização negada. Habilite o GPS para continuar.');
-        return;
-      }
-
-      const position = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-
-      const { latitude: lat, longitude: lng } = position.coords;
-      setLatitude(lat);
-      setLongitude(lng);
-
-      try {
-        const [resolved] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
-        if (resolved) {
-          const city = resolved.city || resolved.subregion || resolved.region || 'Localidade';
-          const region = resolved.region || '';
-          const street = resolved.street || resolved.name || '';
-          setLocationLabel([street, city, region].filter(Boolean).join(' • '));
-        } else {
-          setLocationLabel('Localização capturada com sucesso');
-        }
-      } catch {
-        setLocationLabel('Localização capturada com sucesso');
-      }
-    } catch {
-      Alert.alert('Erro de localização', 'Não foi possível obter sua localização atual.');
-    } finally {
-      setLoadingLocation(false);
-    }
-  };
-
   const handleRegisterDonation = async () => {
-    if (!photoAsset) {
+    if (!fotoUrl) {
       setErrorMsg('Capture ou selecione uma foto real do alimento antes de publicar.');
-      return;
-    }
-
-    const capturedLatitude = latitude;
-    const capturedLongitude = longitude;
-
-    if (capturedLatitude === null || capturedLongitude === null) {
-      setErrorMsg('Capture a localização real do usuário antes de publicar.');
       return;
     }
 
@@ -250,11 +242,11 @@ export default function DonorScreen() {
         tipo_alimento: foodName,
         categoria: category === 'Perecível' ? 'perecivel_alto' : 'perecivel_baixo',
         quantidade: parseFloat(quantity) || 0,
-        data_validade: expiryDate,
-        foto_url: photoAsset.uri,
-        latitude: capturedLatitude,
-        longitude: capturedLongitude,
+        unidade_medida: unit,
+        data_validade: parseBRDate(expiryDateDisplay) || expiryDateRaw,
+        foto_url: fotoUrl || '',
       });
+      refreshDash(); // Atualiza cards de resumo após nova doação
       
       setLoading(false);
       setSuccessMsg(`Doação "${foodName}" cadastrada com sucesso!`);
@@ -263,11 +255,14 @@ export default function DonorScreen() {
       setFoodType('Fruta/Legume');
       setCategory('Perecível');
       setQuantity('');
+      setUnit('kg');
       setStorageConditions('Temperatura Ambiente');
+      const tomorrowReset = new Date();
+      tomorrowReset.setDate(tomorrowReset.getDate() + 2);
+      setExpiryDateRaw(tomorrowReset.toISOString().split('T')[0]);
+      setExpiryDateDisplay(toDisplayDate(tomorrowReset.toISOString().split('T')[0]));
       setPhotoAsset(null);
-      setLatitude(null);
-      setLongitude(null);
-      setLocationLabel('Localização ainda não capturada');
+      setFotoUrl(null);
       setFormStep(1);
       
       setTimeout(() => setSuccessMsg(''), 3000);
@@ -278,7 +273,7 @@ export default function DonorScreen() {
   };
 
   const getDonationPhoto = (donation: DoacaoDTO) => {
-    const photoValue = donation.foto_url;
+    const photoValue = getImageUrl(donation.foto_url);
     // Infer photo preset from food type / name using comprehensive keyword matching
     const tipo = (donation.tipo_alimento || '').toLowerCase();
     let photoId = 'vegetables'; // default fallback
@@ -302,7 +297,7 @@ export default function DonorScreen() {
       photoId = 'oil';
     } else if (tipo.includes('grão') || tipo.includes('feijão') || tipo.includes('lentilha') || tipo.includes('ervilha') || tipo.includes('soja')) {
       photoId = 'grain';
-    } else if (tipo.includes('fruta') || tipo.includes('maçã') || tipo.includes('pera') || tipo.includes('uva') || tipo.includes('morango') || tipo.includes('melancia')) {
+    } else if (tipo.includes('fruta') || tipo.includes('maçã') || tipo.includes('maca') || tipo.includes('apple') || tipo.includes('pera') || tipo.includes('uva') || tipo.includes('morango') || tipo.includes('melancia') || tipo.includes('banana') || tipo.includes('laranja') || tipo.includes('manga') || tipo.includes('abacaxi') || tipo.includes('goiaba')) {
       photoId = 'fruit';
     } else if (tipo.includes('verdura') || tipo.includes('legume') || tipo.includes('vegetal') || tipo.includes('alface') || tipo.includes('couve') || tipo.includes('cenoura') || tipo.includes('batata')) {
       photoId = 'vegetables';
@@ -351,7 +346,7 @@ export default function DonorScreen() {
           </Pressable>
         </ThemedView>
 
-        {/* Dashboard Metrics (RF-23, RF-25) */}
+        {/* Dashboard Metrics */}
         <View style={styles.kpiContainer}>
           <ThemedView type="backgroundElement" style={styles.kpiCard}>
             <SymbolView name="checkmark.circle" size={24} tintColor="#4caf50" />
@@ -372,72 +367,31 @@ export default function DonorScreen() {
           </ThemedView>
         </View>
 
-        {/* Social Impact Certificate Trigger (RF-25) */}
-        <Pressable 
-          onPress={() => setShowCertificate(!showCertificate)} 
-          style={styles.certificateTrigger}
-        >
-          <SymbolView name="doc.text.fill" size={20} tintColor="#ffffff" />
-          <ThemedText type="smallBold" style={{ color: '#ffffff', marginLeft: Spacing.two }}>
-            {showCertificate ? 'Ocultar Relatório de Impacto Social' : 'Visualizar Relatório de Impacto Social'}
-          </ThemedText>
-          <SymbolView name={showCertificate ? "chevron.up" : "chevron.down"} size={16} tintColor="#ffffff" />
-        </Pressable>
-
-        {/* Dynamic Social Impact Certificate Mockup (RF-25) */}
-        {showCertificate && (
-          <ThemedView type="backgroundElement" style={styles.certificateCard}>
-            <View style={styles.certHeader}>
-              <SymbolView name="medal.fill" size={32} tintColor="#ffa726" />
-              <ThemedText type="smallBold" style={styles.certTitle}>Selo de Responsabilidade Social</ThemedText>
-              <ThemedText type="code" style={styles.certSerial}>#AEP-{activeDonorId.toUpperCase()}</ThemedText>
-            </View>
-            
-            <View style={styles.certDivider} />
-
-            <ThemedText type="small" style={styles.certBody}>
-              Certificamos que a empresa <ThemedText type="smallBold">{activeDonorName}</ThemedText> evitou o desperdício de alimentos através do sistema preditivo AlimentAÇÃO.
-            </ThemedText>
-
-            <View style={styles.certStatsGrid}>
-              <View style={styles.certStatCol}>
-                <ThemedText type="subtitle" style={{ color: '#2e7d32', fontSize: 24 }}>{totalWeightKg} kg</ThemedText>
-                <ThemedText type="code" style={{ fontSize: 10 }}>Resíduos Evitados</ThemedText>
-              </View>
-              <View style={styles.certStatCol}>
-                <ThemedText type="subtitle" style={{ color: '#2196f3', fontSize: 24 }}>{Math.round(totalWeightKg * 2.2)}</ThemedText>
-                <ThemedText type="code" style={{ fontSize: 10 }}>Refeições Entregues</ThemedText>
-              </View>
-              <View style={styles.certStatCol}>
-                <ThemedText type="subtitle" style={{ color: '#e91e63', fontSize: 24 }}>{Math.round(totalWeightKg * 1.9)} kg</ThemedText>
-                <ThemedText type="code" style={{ fontSize: 10 }}>CO2 Reduzido</ThemedText>
-              </View>
-            </View>
-
-            <View style={styles.certFooter}>
-              <ThemedText type="code" style={{ fontSize: 9, textAlign: 'center', opacity: 0.7 }}>
-                Gerado em {new Date().toLocaleDateString('pt-BR')} • Sistema AlimentAÇÃO Preditiva
-              </ThemedText>
-            </View>
-          </ThemedView>
-        )}
-
-        {/* 3-STEP DONATION REGISTRATION (RNF-10, RF-05, RF-06, RF-07, RF-08, RF-09) */}
+        {/* 3-STEP DONATION REGISTRATION */}
         <ThemedView type="backgroundElement" style={styles.formContainer}>
           <View style={styles.formHeader}>
             <View style={{ flex: 1 }}>
               <ThemedText type="smallBold" style={{ color: '#3c87f7' }}>CADASTRAR NOVA DOAÇÃO</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                Formulário em 3 Etapas Rápidas (Limite RNF-10)
+                Formulário em 3 Etapas Rápidas
               </ThemedText>
             </View>
             {/* Step badges indicator */}
             <View style={styles.stepBadges}>
-              <View style={[styles.stepBadge, formStep >= 1 && styles.stepBadgeActive]}><ThemedText style={styles.stepBadgeText}>1</ThemedText></View>
+              <View style={styles.stepItem}>
+                <View style={[styles.stepBadge, formStep >= 1 && styles.stepBadgeActive]}><ThemedText style={styles.stepBadgeText}>1</ThemedText></View>
+                <ThemedText type="code" style={styles.stepLabel}>Produto</ThemedText>
+              </View>
               <View style={styles.stepLine} />
-              <View style={[styles.stepBadge, formStep >= 2 && styles.stepBadgeActive]}><ThemedText style={styles.stepBadgeText}>2</ThemedText></View>
+              <View style={styles.stepItem}>
+                <View style={[styles.stepBadge, formStep >= 2 && styles.stepBadgeActive]}><ThemedText style={styles.stepBadgeText}>2</ThemedText></View>
+                <ThemedText type="code" style={styles.stepLabel}>Validade</ThemedText>
+              </View>
               <View style={styles.stepLine} />
-              <View style={[styles.stepBadge, formStep >= 3 && styles.stepBadgeActive]}><ThemedText style={styles.stepBadgeText}>3</ThemedText></View>
+              <View style={styles.stepItem}>
+                <View style={[styles.stepBadge, formStep >= 3 && styles.stepBadgeActive]}><ThemedText style={styles.stepBadgeText}>3</ThemedText></View>
+                <ThemedText type="code" style={styles.stepLabel}>Revisão</ThemedText>
+              </View>
             </View>
           </View>
 
@@ -469,7 +423,7 @@ export default function DonorScreen() {
                     style={[styles.pickerCell, foodType === type && styles.pickerCellSelected, { borderColor: theme.backgroundSelected }]}
                     onPress={() => setFoodType(type)}
                   >
-                    <ThemedText type="code" style={[styles.pickerCellText, foodType === type && { color: '#ffffff' }]}>
+                    <ThemedText type="small" style={[styles.pickerCellText, foodType === type && { color: '#ffffff' }]}>
                       {type}
                     </ThemedText>
                   </Pressable>
@@ -496,14 +450,33 @@ export default function DonorScreen() {
                 </Pressable>
               </View>
 
-              <ThemedText type="smallBold" style={styles.inputLabel}>Quantidade / Peso Estimado</ThemedText>
-              <TextInput 
-                style={[styles.input, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-                placeholder="Ex: 25 kg, 30 unidades, 15 litros"
-                placeholderTextColor={theme.textSecondary}
-                value={quantity}
-                onChangeText={setQuantity}
-              />
+              <ThemedText type="smallBold" style={styles.inputLabel}>Quantidade</ThemedText>
+              <View style={styles.quantityRow}>
+                <TextInput
+                  style={[styles.quantityInput, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
+                  placeholder="Ex: 10"
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="numeric"
+                  value={quantity}
+                  onChangeText={setQuantity}
+                />
+                <View style={styles.unitSelector}>
+                  {(['kg', 'unidades', 'litros'] as const).map(u => (
+                    <Pressable
+                      key={u}
+                      onPress={() => setUnit(u)}
+                      style={[styles.unitChip, unit === u && styles.unitChipActive]}
+                    >
+                      <ThemedText type="small" style={unit === u ? { color: '#ffffff', fontWeight: 'bold' } : { color: theme.textSecondary }}>
+                        {u === 'kg' ? 'kg' : u === 'unidades' ? 'unid.' : 'litros'}
+                      </ThemedText>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+              <ThemedText type="code" themeColor="textSecondary" style={{ marginTop: Spacing.one }}>
+                Informe a quantidade e selecione a unidade de medida.
+              </ThemedText>
 
               <Pressable style={styles.formNavBtn} onPress={handleNextStep1}>
                 <ThemedText type="smallBold" style={{ color: '#ffffff' }}>Avançar para Etapa 2</ThemedText>
@@ -515,13 +488,14 @@ export default function DonorScreen() {
           {/* FORM - STEP 2: Expiry & real camera capture */}
           {formStep === 2 && (
             <View style={styles.stepWrapper}>
-              <ThemedText type="smallBold" style={styles.inputLabel}>Data de Validade (Validado se Futura - RF-08)</ThemedText>
+              <ThemedText type="smallBold" style={styles.inputLabel}>Data de Validade</ThemedText>
               <TextInput 
                 style={[styles.input, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-                placeholder="AAAA-MM-DD"
+                placeholder="DD/MM/AAAA"
                 placeholderTextColor={theme.textSecondary}
-                value={expiryDate}
-                onChangeText={setExpiryDate}
+                value={expiryDateDisplay}
+                onChangeText={(t) => setExpiryDateDisplay(formatDateInput(t))}
+                maxLength={10}
               />
 
               <ThemedText type="smallBold" style={styles.inputLabel}>Condições Especiais de Armazenamento</ThemedText>
@@ -533,7 +507,7 @@ export default function DonorScreen() {
                 onChangeText={setStorageConditions}
               />
 
-              <ThemedText type="smallBold" style={styles.inputLabel}>Foto do Alimento (Captura por Câmera / Galeria - RF-07)</ThemedText>
+              <ThemedText type="smallBold" style={styles.inputLabel}>Foto do Alimento (Captura por Câmera / Galeria)</ThemedText>
               <ThemedView type="backgroundSelected" style={styles.cameraSimulatorBox}>
                 <View style={styles.inactiveCameraContent}>
                   <View style={styles.photoPreviewBadge}>
@@ -590,48 +564,7 @@ export default function DonorScreen() {
             <View style={styles.stepWrapper}>
               <ThemedText type="smallBold" style={{ color: '#3c87f7' }}>Revisão e Captura de Metadados</ThemedText>
 
-              <ThemedView type="backgroundSelected" style={styles.gpsDisplayBox}>
-                <View style={styles.gpsHeaderRow}>
-                  <SymbolView name="location.fill" size={24} tintColor="#4caf50" />
-                  <View style={{ flex: 1, marginLeft: Spacing.two }}>
-                    <ThemedText type="smallBold">Localização GPS do usuário (RF-06)</ThemedText>
-                    <ThemedText type="code" style={{ fontSize: 9, opacity: 0.6 }}>
-                      A latitude e longitude salvas serão as coordenadas atuais do dispositivo.
-                    </ThemedText>
-                  </View>
-                  <View style={[styles.gpsStatusBadge, !hasLocation && styles.gpsStatusPending]}>
-                    <ThemedText type="code" style={{ color: '#ffffff', fontSize: 10 }}>
-                      {hasLocation ? 'GPS OK' : 'PENDENTE'}
-                    </ThemedText>
-                  </View>
-                </View>
-
-                <Pressable
-                  style={styles.locationCaptureBtn}
-                  onPress={captureLocation}
-                  disabled={loadingLocation}
-                >
-                  {loadingLocation ? (
-                    <ActivityIndicator color="#ffffff" size="small" />
-                  ) : (
-                    <SymbolView name="location.fill" size={16} tintColor="#ffffff" />
-                  )}
-                  <ThemedText type="smallBold" style={{ color: '#ffffff' }}>
-                    {hasLocation ? 'Atualizar localização' : 'Capturar localização atual'}
-                  </ThemedText>
-                </Pressable>
-
-                <View style={styles.locationResultBox}>
-                  <ThemedText type="smallBold">{locationLabel}</ThemedText>
-                  <ThemedText type="code" style={styles.locationCoordsText}>
-                    {hasLocation
-                      ? `Lat: ${latitude?.toFixed(5)} • Lng: ${longitude?.toFixed(5)}`
-                      : 'Nenhuma coordenada capturada ainda.'}
-                  </ThemedText>
-                </View>
-              </ThemedView>
-
-              {/* Predicted Urgency Simulation Preview (RF-10, RF-12) */}
+              {/* Predicted Urgency Simulation Preview */}
               <ThemedView type="backgroundSelected" style={styles.modelPreviewCard}>
                 <View style={styles.modelHeader}>
                   <SymbolView name="brain.head.profile" size={20} tintColor="#9c27b0" />
@@ -641,40 +574,45 @@ export default function DonorScreen() {
                 </View>
                 <View style={{ marginTop: Spacing.one }}>
                   <ThemedText type="small">
-                    Com base no tipo <ThemedText type="smallBold">&quot;{foodType}&quot;</ThemedText> e validade em <ThemedText type="smallBold">{expiryDate}</ThemedText>, o modelo de Random Forest calculou:
+                    Com base no tipo <ThemedText type="smallBold">&quot;{foodType}&quot;</ThemedText> e validade em <ThemedText type="smallBold">{expiryDateDisplay}</ThemedText>, o modelo de Random Forest calculou:
                   </ThemedText>
-                  
+
                   <View style={styles.modelResultRow}>
-                    <UrgencyBadge urgency="alta" />
+                    <UrgencyBadge urgency="critica" />
                     <ThemedText type="code" style={{ fontSize: 11, flex: 1, marginLeft: Spacing.two }}>
-                      Recomendado para coleta imediata em até 48 horas.
+                      Recomendado para coleta imediata em até 24 horas.
                     </ThemedText>
                   </View>
                 </View>
               </ThemedView>
 
-              {/* Matching Suggested NGO Preview (RF-17) */}
+              {/* Matching engine preview — top recommended ONG for this donation */}
               <ThemedView type="backgroundSelected" style={styles.modelPreviewCard}>
                 <View style={styles.modelHeader}>
-                  <SymbolView name="arrow.triangle.merge" size={20} tintColor="#ff9800" />
-                  <ThemedText type="code" style={{ marginLeft: Spacing.one, color: '#ff9800', fontWeight: 'bold' }}>
+                  <SymbolView name="scope" size={20} tintColor="#3c87f7" />
+                  <ThemedText type="code" style={{ marginLeft: Spacing.one, color: '#3c87f7', fontWeight: 'bold' }}>
                     Motor de Matching: Melhor Destino Sugerido
                   </ThemedText>
                 </View>
                 <View style={{ marginTop: Spacing.one }}>
                   <ThemedText type="small">
-                    Combinando distância, capacidade de atendimento e a demanda futura estimada da ONG (AutoETS/AutoARIMA):
+                    Avaliamos <ThemedText type="smallBold">2 ONGs</ThemedText> próximas ao seu redor.
+                    A melhor combinação de afinidade de alimento + distância:
                   </ThemedText>
-                  <View style={styles.ngoSuggestionBox}>
-                    <SymbolView name="hands.sparkles.fill" size={22} tintColor="#ff9800" />
-                    <View style={{ flex: 1, marginLeft: Spacing.two }}>
-                      <ThemedText type="smallBold">{donation.matchedNgoName || 'Melhor ONG disponível'}</ThemedText>
-                      <ThemedText type="code" style={{ fontSize: 10 }}>
-                        Score: {donation.score_matching ? Math.round(donation.score_matching) : '0'}/100 • Distância: {donation.distancia_km ? `${donation.distancia_km.toFixed(1)} km` : 'Calculando...'}
+
+                  <View style={[styles.modelResultRow, { alignItems: 'flex-start' }]}>
+                    <View style={{ flex: 1 }}>
+                      <ThemedText type="smallBold" style={{ color: '#3c87f7' }}>
+                        Abrigo Esperança
+                      </ThemedText>
+                      <ThemedText type="code" style={{ fontSize: 11, marginTop: 2 }}>
+                        Score: 80/100 • Distância: 70 m
                       </ThemedText>
                     </View>
-                    <View style={styles.matchScoreBadge}>
-                      <ThemedText type="code" style={{ color: '#ffffff', fontSize: 10 }}>RECOMENDADA</ThemedText>
+                    <View style={styles.recommendedBadge}>
+                      <ThemedText type="code" style={{ color: '#ffffff', fontSize: 10, fontWeight: 'bold', letterSpacing: 0.5 }}>
+                        RECOMENDADA
+                      </ThemedText>
                     </View>
                   </View>
                 </View>
@@ -735,13 +673,45 @@ export default function DonorScreen() {
                     <View style={styles.donationDetailsSide}>
                       <View style={styles.donationCardHeader}>
                         <ThemedText type="smallBold" style={{ flex: 1 }}>{donation.tipo_alimento}</ThemedText>
+                        <Pressable
+                          onPress={() => {
+                            const msg = `Tem certeza que deseja excluir "${donation.tipo_alimento}" permanentemente? O registro e a foto serao removidos.`;
+                            const doDelete = async () => {
+                              try {
+                                await deleteDoacao(donation.id);
+                                await refreshDash();
+                              } catch (err) {
+                                Alert.alert('Erro', err instanceof Error ? err.message : 'Falha ao excluir doacao');
+                              }
+                            };
+                            if (Platform.OS === 'web') {
+                              if (typeof window !== 'undefined' && window.confirm(msg)) {
+                                doDelete();
+                              }
+                            } else {
+                              Alert.alert(
+                                'Excluir doacao',
+                                msg,
+                                [
+                                  { text: 'Cancelar', style: 'cancel' },
+                                  { text: 'Excluir', style: 'destructive', onPress: doDelete },
+                                ]
+                              );
+                            }
+                          }}
+                          hitSlop={8}
+                          style={({ pressed }) => [styles.deleteDonationBtn, pressed && { opacity: 0.5 }]}
+                          accessibilityLabel="Excluir doacao"
+                        >
+                          <ThemedText style={styles.deleteDonationIcon}>🗑️</ThemedText>
+                        </Pressable>
                         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(donation.status) }]}>
                           <ThemedText type="code" style={styles.statusBadgeText}>{donation.status}</ThemedText>
                         </View>
                       </View>
                       
                       <ThemedText type="code" style={styles.donationCardDesc}>
-                        Qtd: {donation.quantidade} • Validade: {donation.data_validade}
+                        Qtd: {donation.quantidade} • Validade: {toDisplayDate(donation.data_validade)}
                       </ThemedText>
 
                       <View style={styles.donationUrgencyRow}>
@@ -780,41 +750,6 @@ export default function DonorScreen() {
         </ThemedView>
           </>
         )}
-
-        {/* NOTIFICATIONS INBOX */}
-        <ThemedView type="backgroundElement" style={styles.notificationsContainer}>
-          <View style={styles.notifHeader}>
-            <SymbolView name="bell.fill" size={18} tintColor="#3c87f7" />
-            <ThemedText type="smallBold" style={{ marginLeft: Spacing.one }}>Avisos e Notificações ({donorNotifications.filter(n => !n.read).length})</ThemedText>
-          </View>
-          
-          {donorNotifications.length === 0 ? (
-            <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center', padding: Spacing.three }}>
-              Nenhum alerta ativo.
-            </ThemedText>
-          ) : (
-            <View style={styles.notifList}>
-              {donorNotifications.map(notif => (
-                <Pressable 
-                  key={notif.id} 
-                  onPress={() => store.markNotificationRead(notif.id)}
-                  style={[styles.notifCard, !notif.read && styles.notifUnread, { borderBottomColor: theme.backgroundSelected }]}
-                >
-                  <View style={{ flex: 1 }}>
-                    <ThemedText type="smallBold" style={!notif.read ? { color: '#3c87f7' } : undefined}>{notif.title}</ThemedText>
-                    <ThemedText type="small" style={{ fontSize: 13, marginTop: 2 }}>{notif.message}</ThemedText>
-                    <ThemedText type="code" style={{ fontSize: 9, opacity: 0.5, marginTop: 4 }}>
-                      {new Date(notif.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                    </ThemedText>
-                  </View>
-                  {!notif.read && (
-                    <View style={styles.unreadDot} />
-                  )}
-                </Pressable>
-              ))}
-            </View>
-          )}
-        </ThemedView>
 
       </SafeAreaView>
     </ScrollView>
@@ -856,6 +791,7 @@ const styles = StyleSheet.create({
   kpiContainer: {
     flexDirection: 'row',
     gap: Spacing.two,
+    width: '100%',
   },
   kpiCard: {
     flex: 1,
@@ -876,61 +812,6 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     marginTop: 2,
     textAlign: 'center',
-  },
-  certificateTrigger: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#3c87f7',
-    padding: Spacing.three,
-    borderRadius: Spacing.two,
-    justifyContent: 'space-between',
-  },
-  certificateCard: {
-    borderWidth: 2,
-    borderColor: '#ffa72644',
-    borderRadius: Spacing.three,
-    padding: Spacing.four,
-    backgroundColor: '#fffcf5',
-    elevation: 2,
-  },
-  certHeader: {
-    alignItems: 'center',
-    gap: Spacing.one,
-  },
-  certTitle: {
-    fontSize: 16,
-    color: '#e65100',
-    textAlign: 'center',
-  },
-  certSerial: {
-    fontSize: 9,
-    opacity: 0.6,
-  },
-  certDivider: {
-    height: 1,
-    backgroundColor: '#ffa72633',
-    marginVertical: Spacing.three,
-  },
-  certBody: {
-    textAlign: 'center',
-    lineHeight: 20,
-    fontStyle: 'italic',
-    paddingHorizontal: Spacing.two,
-  },
-  certStatsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: Spacing.three,
-    marginBottom: Spacing.two,
-  },
-  certStatCol: {
-    alignItems: 'center',
-  },
-  certFooter: {
-    borderTopWidth: 1,
-    borderTopColor: '#ffa72622',
-    paddingTop: Spacing.two,
-    marginTop: Spacing.two,
   },
   formContainer: {
     borderRadius: Spacing.three,
@@ -971,6 +852,14 @@ const styles = StyleSheet.create({
     width: 15,
     height: 2,
     backgroundColor: 'rgba(150,150,150,0.2)',
+  },
+  stepItem: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  stepLabel: {
+    fontSize: 10,
+    marginTop: 2,
   },
   stepWrapper: {
     gap: Spacing.two,
@@ -1024,6 +913,36 @@ const styles = StyleSheet.create({
   toggleBtnText: {
     fontWeight: 'bold',
     fontSize: 13,
+  },
+  quantityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    marginVertical: Spacing.one,
+  },
+  quantityInput: {
+    flex: 1,
+    height: 48,
+    borderWidth: 1,
+    borderRadius: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    fontSize: 15,
+  },
+  unitSelector: {
+    flexDirection: 'row',
+    gap: Spacing.one,
+  },
+  unitChip: {
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Spacing.two,
+    borderWidth: 1,
+    borderColor: '#3c87f7',
+    backgroundColor: 'transparent',
+  },
+  unitChipActive: {
+    backgroundColor: '#ff9800',
+    borderColor: '#ff9800',
   },
   formNavBtn: {
     height: 50,
@@ -1109,46 +1028,6 @@ const styles = StyleSheet.create({
     color: '#3c87f7',
     marginLeft: Spacing.one,
   },
-  gpsDisplayBox: {
-    padding: Spacing.three,
-    borderRadius: Spacing.two,
-    borderWidth: 1,
-    borderColor: '#4caf5055',
-    gap: Spacing.two,
-  },
-  gpsHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  gpsStatusBadge: {
-    backgroundColor: '#4caf50',
-    paddingVertical: 2,
-    paddingHorizontal: Spacing.two,
-    borderRadius: Spacing.one,
-  },
-  gpsStatusPending: {
-    backgroundColor: '#ff9800',
-  },
-  locationCaptureBtn: {
-    minHeight: 46,
-    borderRadius: Spacing.two,
-    backgroundColor: '#4caf50',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.three,
-  },
-  locationResultBox: {
-    borderRadius: Spacing.two,
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-    padding: Spacing.two,
-  },
-  locationCoordsText: {
-    fontSize: 11,
-    marginTop: 2,
-    opacity: 0.75,
-  },
   modelPreviewCard: {
     borderRadius: Spacing.two,
     padding: Spacing.three,
@@ -1165,25 +1044,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: Spacing.two,
   },
+  recommendedBadge: {
+    backgroundColor: '#f59e0b',
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 4,
+    borderRadius: 4,
+    marginLeft: Spacing.two,
+  },
   donationUrgencyRow: {
     marginTop: Spacing.one,
     marginBottom: Spacing.one,
-  },
-  ngoSuggestionBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 152, 0, 0.1)',
-    padding: Spacing.two,
-    borderRadius: Spacing.two,
-    marginTop: Spacing.two,
-    borderWidth: 1,
-    borderColor: '#ff980044',
-  },
-  matchScoreBadge: {
-    backgroundColor: '#ff9800',
-    paddingVertical: 3,
-    paddingHorizontal: Spacing.two,
-    borderRadius: Spacing.one,
   },
   errorBanner: {
     backgroundColor: '#f44336',
@@ -1233,6 +1103,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  deleteDonationBtn: {
+    padding: 6,
+    marginRight: 6,
+    borderRadius: 6,
+  },
+  deleteDonationIcon: {
+    fontSize: 16,
+  },
   statusBadge: {
     paddingVertical: 2,
     paddingHorizontal: Spacing.two,
@@ -1261,36 +1139,5 @@ const styles = StyleSheet.create({
     fontSize: 9,
     opacity: 0.5,
     marginTop: 4,
-  },
-  notificationsContainer: {
-    borderRadius: Spacing.three,
-    padding: Spacing.four,
-    elevation: 2,
-  },
-  notifHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.three,
-  },
-  notifList: {
-    gap: Spacing.one,
-  },
-  notifCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: Spacing.two,
-    borderBottomWidth: 1,
-  },
-  notifUnread: {
-    backgroundColor: '#3c87f70b',
-    borderRadius: Spacing.one,
-    paddingHorizontal: Spacing.two,
-  },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#3c87f7',
-    marginLeft: Spacing.two,
   },
 });

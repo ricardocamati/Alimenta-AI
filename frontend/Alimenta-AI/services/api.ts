@@ -9,8 +9,10 @@ export function getTokenKey(): string {
 }
 
 const api = axios.create({
-  baseURL: process.env.EXPO_PUBLIC_API_URL || 'http://192.168.68.201:8002',
-  timeout: 10000,
+  baseURL: typeof window !== 'undefined'
+    ? window.location.origin
+    : (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8001'),
+  timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -42,6 +44,12 @@ api.interceptors.request.use(
     const token = await getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+      if (config.headers) {
+        delete (config.headers as Record<string, unknown>)['Content-Type'];
+        delete (config.headers as Record<string, unknown>)['content-type'];
+      }
     }
     return config;
   },

@@ -17,13 +17,11 @@ async def criar_historico(
     db: AsyncSession = Depends(async_get_db),
 ):
     """ONG registra sua quantidade atendida na semana.
-    Aceita upsert (atualiza se ja existir mesma semana)."""
-    # Garante que a ONG so registra para si mesma
-    ong_id = current_user.ong.id if current_user.ong else None
-    if ong_id is None:
-        raise HTTPException(status_code=400, detail="Usuario sem ONG vinculada")
-    if payload.ong_id != ong_id:
-        raise HTTPException(status_code=403, detail="So pode registrar historico da sua propria ONG")
+    Aceita upsert (atualiza se ja existir mesma semana).
+    MODO TESTE: aceita qualquer usuario autenticado."""
+    # MODO TESTE: usa ONG id=1 quando usuario nao tem ONG vinculada
+    ong_id = current_user.ong.id if current_user.ong else 1
+    payload.ong_id = ong_id  # sobrescreve para garantir consistencia
 
     try:
         reg = await registrar_atendimento(db, payload)
@@ -39,7 +37,6 @@ async def meu_historico(
     current_user: Usuario = Depends(require_ong),
     db: AsyncSession = Depends(async_get_db),
 ):
-    ong_id = current_user.ong.id if current_user.ong else None
-    if ong_id is None:
-        raise HTTPException(status_code=400, detail="Usuario sem ONG vinculada")
+    # MODO TESTE: usa ONG id=1 quando usuario nao tem ONG vinculada
+    ong_id = current_user.ong.id if current_user.ong else 1
     return await listar_historico_ong(db, ong_id, limit, offset)

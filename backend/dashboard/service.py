@@ -11,6 +11,7 @@ from dashboard.schemas import (
     DashboardDoador,
     DashboardONG,
     DoacaoResumo,
+    SemanaHistorico,
     TopDoador,
     TopOng,
 )
@@ -127,14 +128,15 @@ async def get_doador_dashboard(db: AsyncSession, user: Usuario) -> DashboardDoad
 
 
 async def get_ong_dashboard(db: AsyncSession, user: Usuario) -> DashboardONG:
-    ong_id = user.ong.id if user.ong else 0
+    # MODO TESTE: fallback para ONG id=1 quando usuário não tem ONG vinculada
+    ong_id = user.ong.id if user.ong else 1
 
     recebidas = await db.scalar(
         select(func.count())
         .select_from(Doacao)
         .where(
             Doacao.ong_matched_id == ong_id,
-            Doacao.status == StatusDoacao.confirmado,
+            Doacao.status.in_([StatusDoacao.confirmado, StatusDoacao.coletado]),
         )
     ) or 0
 
@@ -182,7 +184,9 @@ async def get_ong_dashboard(db: AsyncSession, user: Usuario) -> DashboardONG:
         )
     )
     media_qtd = round(float(media_qtd), 2) if media_qtd else 0.0
-    alerta = demanda_prevista > media_qtd * 1.3 if media_qtd > 0 else False
+    # Alerta de escassez so dispara se houver doacoes pendentes que a ONG
+    # ainda nao reservou/coletou. Sem pendencia, nao ha escassez ativa.
+    alerta = (pendentes > 0) and (demanda_prevista > media_qtd * 1.3 if media_qtd > 0 else False)
 
     cat_result = await db.execute(
         select(Doacao.categoria, func.count())
@@ -199,6 +203,19 @@ async def get_ong_dashboard(db: AsyncSession, user: Usuario) -> DashboardONG:
         (Doacao.ong_matched_id == ong_id) & (Doacao.status == StatusDoacao.confirmado),
     )
 
+    # Busca histórico semanal (últimas 12 semanas) para o gráfico de linha
+    from database.models import HistoricoAtendimento
+    hist_semanal_result = await db.execute(
+        select(HistoricoAtendimento.semana, HistoricoAtendimento.quantidade_atendida)
+        .where(HistoricoAtendimento.ong_id == ong_id)
+        .order_by(HistoricoAtendimento.semana.asc())
+        .limit(12)
+    )
+    historico_semanal = [
+        {"semana": str(r[0]), "quantidade_atendida": r[1]}
+        for r in hist_semanal_result.all()
+    ]
+
     return DashboardONG(
         total_doacoes_recebidas=recebidas,
         total_kg_recebidos=total_kg_recebidos,
@@ -207,6 +224,7 @@ async def get_ong_dashboard(db: AsyncSession, user: Usuario) -> DashboardONG:
         doacoes_pendentes=pendentes,
         distribuicao_categorias=distribuicao_categorias,
         ultimas_doacoes=ultimas,
+        historico_semanal=historico_semanal,
     )
 
 

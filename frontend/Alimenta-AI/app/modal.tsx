@@ -8,6 +8,7 @@ import {
   StyleSheet,
   TextInput,
   View,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -18,8 +19,11 @@ import * as Location from 'expo-location';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { useStore } from '@/hooks/use-store';
+import { useDoacao } from '@/hooks/useDoacao';
+import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/use-theme';
+import { handleApiError } from '@/utils/errorHandler';
+import { formatDateInput, parseBRDate, toDisplayDate } from '@/utils/dateMask';
 
 const FOOD_TYPES = ['Fruta/Legume', 'Laticínio', 'Panificação', 'Carne/Proteína', 'Grãos', 'Outros'];
 
@@ -33,19 +37,26 @@ function defaultExpiryDate() {
 }
 
 export default function ModalScreen() {
-  const store = useStore();
   const theme = useTheme();
+  const { user } = useAuth();
+  const { createDoacao } = useDoacao();
 
   const [step, setStep] = useState<Step>(1);
   const [foodName, setFoodName] = useState('');
   const [foodType, setFoodType] = useState(FOOD_TYPES[0]);
   const [category, setCategory] = useState<Category>('Perecível');
   const [quantity, setQuantity] = useState('');
-  const [expiryDate, setExpiryDate] = useState(defaultExpiryDate());
+  const [unit, setUnit] = useState<'kg' | 'unidades' | 'litros'>('kg');
+  const [expiryDateRaw, setExpiryDateRaw] = useState(defaultExpiryDate());
+  const [expiryDateDisplay, setExpiryDateDisplay] = useState(() => toDisplayDate(defaultExpiryDate()));
   const [photoAsset, setPhotoAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
-  const [latitude, setLatitude] = useState<number | null>(null);
-  const [longitude, setLongitude] = useState<number | null>(null);
-  const [locationLabel, setLocationLabel] = useState('Localização ainda não capturada');
+  const [latitude, setLatitude] = useState<number | null>(user?.latitude ?? null);
+  const [longitude, setLongitude] = useState<number | null>(user?.longitude ?? null);
+  const [locationLabel, setLocationLabel] = useState(
+    user?.latitude && user?.longitude
+      ? `Lat: ${user.latitude.toFixed(5)} • Lng: ${user.longitude.toFixed(5)}`
+      : 'Localização ainda não capturada'
+  );
   const [loadingPhoto, setLoadingPhoto] = useState(false);
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -80,7 +91,12 @@ export default function ModalScreen() {
   function validateStep2() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const expiry = new Date(expiryDate);
+    const isoDate = parseBRDate(expiryDateDisplay);
+    if (!isoDate) {
+      setErrorMsg('Digite a data no formato DD/MM/AAAA.');
+      return;
+    }
+    const expiry = new Date(isoDate);
 
     if (Number.isNaN(expiry.getTime()) || expiry <= today) {
       setErrorMsg('A data de validade precisa ser futura.');
@@ -108,7 +124,7 @@ export default function ModalScreen() {
       }
 
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ImagePicker.MediaType.Images,
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.85,
@@ -119,6 +135,49 @@ export default function ModalScreen() {
       }
     } catch {
       Alert.alert('Erro na câmera', 'Não foi possível abrir a câmera neste dispositivo.');
+    } finally {
+      setLoadingPhoto(false);
+    }
+  }
+
+  async function pickPhotoFromLibrary() {
+    if (Platform.OS === 'web') {
+      // Fallback nativo HTML file picker para web
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = async () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        const uri = URL.createObjectURL(file);
+        setPhotoAsset({ uri, width: 0, height: 0, type: 'image' } as any);
+      };
+      input.click();
+      return;
+    }
+
+    try {
+      setLoadingPhoto(true);
+      setErrorMsg('');
+
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        setErrorMsg('Permissão de galeria negada. Habilite o acesso às fotos para continuar.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaType.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.85,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        setPhotoAsset(result.assets[0]);
+      }
+    } catch {
+      Alert.alert('Erro na galeria', 'Não foi possível selecionar uma imagem neste dispositivo.');
     } finally {
       setLoadingPhoto(false);
     }
@@ -164,7 +223,7 @@ export default function ModalScreen() {
     }
   }
 
-  function submitDonation() {
+  async function submitDonation() {
     if (!photoAsset) {
       setErrorMsg('Capture uma foto antes de confirmar.');
       return;
@@ -181,31 +240,45 @@ export default function ModalScreen() {
     setErrorMsg('');
     setSubmitting(true);
 
-    setTimeout(() => {
-      try {
-        store.registerDonation({
-          name: foodName.trim(),
-          type: foodType,
-          category,
-          quantity: quantity.trim(),
-          expiryDate,
-          photoUrl: photoAsset.uri,
-          storageConditions,
-          lat: capturedLatitude,
-          lng: capturedLongitude,
-        });
-
-        setSuccessMsg('Doação registrada com sucesso.');
-        setSubmitting(false);
-
-        setTimeout(() => {
-          router.back();
-        }, 800);
-      } catch (error: any) {
-        setSubmitting(false);
-        setErrorMsg(error?.message || 'Não foi possível registrar a doação.');
+    try {
+      const formData = new FormData();
+      if (Platform.OS === 'web') {
+        const blob = await (await fetch(photoAsset.uri)).blob();
+        formData.append('file', blob, 'doacao.jpg');
+      } else {
+        formData.append('file', {
+          uri: photoAsset.uri,
+          type: 'image/jpeg',
+          name: 'doacao.jpg',
+        } as any);
       }
-    }, 700);
+
+      const api = (await import('@/services/api')).default;
+      const uploadRes = await api.post<
+{ url: string }>(
+        '/doacoes/upload-foto',
+        formData,
+      );
+      const categoriaBackend = category === 'Perecível' ? foodType : 'Não-perecíveis';
+
+      await createDoacao({
+        tipo_alimento: foodType,
+        categoria: categoriaBackend,
+        quantidade: parseFloat(quantity.replace(',', '.')) || 1,
+        unidade_medida: unit,
+        data_validade: parseBRDate(expiryDateDisplay) || expiryDateRaw,
+        foto_url: uploadRes.url,
+        latitude: capturedLatitude,
+        longitude: capturedLongitude,
+      });
+
+      setSuccessMsg('Doação registrada com sucesso.');
+      setTimeout(() => router.back(), 800);
+    } catch (err) {
+      setErrorMsg(handleApiError(err));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -305,14 +378,29 @@ export default function ModalScreen() {
             </View>
 
             <ThemedText type="smallBold" style={styles.label}>Quantidade</ThemedText>
-            <TextInput
-              value={quantity}
-              onChangeText={setQuantity}
-              placeholder="Ex: 25 kg, 12 unidades"
-              placeholderTextColor={theme.textSecondary}
-              keyboardType="numeric"
-              style={[styles.input, { color: theme.text, borderColor: theme.backgroundSelected }]}
-            />
+            <View style={styles.quantityRow}>
+              <TextInput
+                value={quantity}
+                onChangeText={setQuantity}
+                placeholder="Ex: 10"
+                placeholderTextColor={theme.textSecondary}
+                keyboardType="numeric"
+                style={[styles.quantityInput, { color: theme.text, borderColor: theme.backgroundSelected }]}
+              />
+              <View style={styles.unitSelector}>
+                {(['kg', 'unidades', 'litros'] as const).map(u => (
+                  <Pressable
+                    key={u}
+                    onPress={() => setUnit(u)}
+                    style={[styles.unitChip, unit === u && styles.unitChipActive]}
+                  >
+                    <ThemedText type="small" style={unit === u ? { color: '#ffffff', fontWeight: 'bold' } : { color: theme.textSecondary }}>
+                      {u === 'kg' ? 'kg' : u === 'unidades' ? 'unid.' : 'litros'}
+                    </ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
 
             <Pressable style={styles.primaryButton} onPress={validateStep1}>
               <ThemedText type="smallBold" style={styles.primaryButtonText}>Avançar para câmera e validade</ThemedText>
@@ -341,26 +429,33 @@ export default function ModalScreen() {
                 <ThemedText type="small" themeColor="textSecondary">
                   Capture a imagem da doação usando a câmera do dispositivo.
                 </ThemedText>
-                <Pressable style={styles.secondaryButton} onPress={capturePhoto} disabled={loadingPhoto}>
-                  {loadingPhoto ? (
-                    <ActivityIndicator color="#3c87f7" size="small" />
-                  ) : (
-                    <>
-                      <SymbolView name="camera.fill" size={16} tintColor="#3c87f7" />
-                      <ThemedText type="smallBold" style={styles.secondaryButtonText}>Abrir câmera</ThemedText>
-                    </>
-                  )}
-                </Pressable>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <Pressable style={styles.secondaryButton} onPress={capturePhoto} disabled={loadingPhoto}>
+                    {loadingPhoto ? (
+                      <ActivityIndicator color="#3c87f7" size="small" />
+                    ) : (
+                      <>
+                        <SymbolView name="camera.fill" size={16} tintColor="#3c87f7" />
+                        <ThemedText type="smallBold" style={styles.secondaryButtonText}>Abrir câmera</ThemedText>
+                      </>
+                    )}
+                  </Pressable>
+                  <Pressable style={styles.galleryBtn} onPress={pickPhotoFromLibrary} disabled={loadingPhoto}>
+                    <SymbolView name="photo.fill" size={16} tintColor="#3c87f7" />
+                    <ThemedText type="smallBold" style={styles.galleryBtnText}>Galeria</ThemedText>
+                  </Pressable>
+                </View>
               </View>
             </View>
 
             <ThemedText type="smallBold" style={styles.label}>Validade</ThemedText>
             <TextInput
-              value={expiryDate}
-              onChangeText={setExpiryDate}
-              placeholder="AAAA-MM-DD"
+              value={expiryDateDisplay}
+              onChangeText={(t) => setExpiryDateDisplay(formatDateInput(t))}
+              placeholder="DD/MM/AAAA"
               placeholderTextColor={theme.textSecondary}
               style={[styles.input, { color: theme.text, borderColor: theme.backgroundSelected }]}
+              maxLength={10}
             />
 
             <ThemedView type="backgroundSelected" style={styles.infoBox}>
@@ -430,7 +525,7 @@ export default function ModalScreen() {
               <View style={styles.summaryRow}><ThemedText type="code" themeColor="textSecondary">Tipo</ThemedText><ThemedText type="code">{foodType}</ThemedText></View>
               <View style={styles.summaryRow}><ThemedText type="code" themeColor="textSecondary">Categoria</ThemedText><ThemedText type="code">{category}</ThemedText></View>
               <View style={styles.summaryRow}><ThemedText type="code" themeColor="textSecondary">Quantidade</ThemedText><ThemedText type="code">{quantity}</ThemedText></View>
-              <View style={styles.summaryRow}><ThemedText type="code" themeColor="textSecondary">Validade</ThemedText><ThemedText type="code">{expiryDate}</ThemedText></View>
+              <View style={styles.summaryRow}><ThemedText type="code" themeColor="textSecondary">Validade</ThemedText><ThemedText type="code">{expiryDateDisplay}</ThemedText></View>
               <View style={styles.summaryRow}><ThemedText type="code" themeColor="textSecondary">Armazenamento</ThemedText><ThemedText type="code">{storageConditions}</ThemedText></View>
             </ThemedView>
 
@@ -557,6 +652,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     fontSize: 15,
   },
+  quantityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    marginVertical: Spacing.one,
+  },
+  quantityInput: {
+    flex: 1,
+    height: 48,
+    borderWidth: 1,
+    borderRadius: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    fontSize: 15,
+  },
+  unitSelector: {
+    flexDirection: 'row',
+    gap: Spacing.one,
+  },
+  unitChip: {
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Spacing.two,
+    borderWidth: 1,
+    borderColor: '#3c87f7',
+    backgroundColor: 'transparent',
+  },
+  unitChipActive: {
+    backgroundColor: '#ff9800',
+    borderColor: '#ff9800',
+  },
   pillsWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -627,6 +752,22 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     color: '#3c87f7',
+  },
+  galleryBtn: {
+    minHeight: 50,
+    borderRadius: Spacing.two,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#3c87f7',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.three,
+  },
+  galleryBtnText: {
+    color: '#3c87f7',
+    fontSize: 12,
   },
   buttonFlex: {
     flex: 1,

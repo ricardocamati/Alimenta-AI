@@ -44,14 +44,18 @@ export interface UserDTO {
   cpf_cnpj: string | null;
   endereco: string | null;
   telefone: string | null;
+  latitude: number | null;
+  longitude: number | null;
   criado_em: string;
   ong: ONGDTO | null;
+  is_test_mode?: boolean;
 }
 
 export interface CreateDoacaoDTO {
   tipo_alimento: string;
   categoria: string;
   quantidade: number;
+  unidade_medida?: string;
   data_validade: string;
   foto_url?: string;
   latitude?: number;
@@ -62,6 +66,10 @@ export interface DoacaoDTO {
   id: number;
   doador_id: number;
   doador_nome: string | null;
+  doador_endereco: string | null;
+  doador_latitude: number | null;
+  doador_longitude: number | null;
+  doador_telefone: string | null;
   tipo_alimento: string;
   categoria: string;
   quantidade: number;
@@ -122,6 +130,7 @@ export interface DashboardONGDTO {
     status: StatusDoacao;
     criado_em: string;
   }[];
+  historico_semanal?: { semana: string; quantidade_atendida: number }[];
 }
 
 export interface DashboardAdminDTO {
@@ -144,4 +153,69 @@ export interface HistoricoAtendimentoDTO {
   ong_id: number;
   semana: string;
   quantidade_atendida: number;
+}
+
+export type NotificacaoCategory = 'expiry' | 'scarcity' | 'status' | 'system';
+
+export interface NotificacaoDTO {
+  id: number;
+  user_id: string;
+  user_type: TipoUsuario;
+  title: string;
+  message: string;
+  category: NotificacaoCategory;
+  related_donation_id: number | null;
+  read: boolean;
+  timestamp: string;
+}
+
+export interface OngMeDTO {
+  id: number;
+  cnpj: string;
+  capacidade_atendimento: number;
+  latitude: number;
+  longitude: number;
+  pickup_radius: number | null;
+  accepted_food_types: string[] | null;
+  pickup_schedule: string | null;
+}
+
+export interface AdminUserDTO {
+  id: number;
+  nome: string;
+  email: string;
+  tipo: string;
+  cpf_cnpj: string | null;
+  criado_em: string;
+  ong_id: number | null;
+}
+
+export interface AdminOngDTO {
+  id: number;
+  usuario_id: number;
+  cnpj: string;
+  capacidade_atendimento: number;
+  latitude: number;
+  longitude: number;
+  pickup_radius: number | null;
+  accepted_food_types: string | null;
+  pickup_schedule: string | null;
+  usuario_nome: string | null;
+}
+
+export interface AdminAuditLogDTO {
+  id: number;
+  doacao_id: number;
+  estado_anterior: string;
+  estado_novo: string;
+  timestamp: string;
+  descricao: string | null;
+  doacao_nome: string | null;
+}
+
+export interface WeightsDTO {
+  urgency: number;
+  demand: number;
+  distance: number;
+  updated_at: string | null;
 }

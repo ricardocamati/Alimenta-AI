@@ -1,29 +1,39 @@
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
 from sqlalchemy import select
-
+from admin import router as admin_router
 from auth import auth_router
 from config import settings
 from dashboard import dashboard_router
 from doacoes import doacoes_router
 from historico import router as historico_router
+from notifications import router as notifications_router
+from ongs import router as ongs_router
 
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="Alimenta.AI",
-    description="Sistema preditivo de redistribuicao inteligente de alimentos com Machine Learning",
+    title="Alimenta-IA",
+    description="Sistema de inteligencia artificial para redistribuicao inteligente de alimentos",
     version="0.1.0",
 )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from database.connection import Base, async_engine
+    from database import models  # noqa: F401  garante registro das classes no metadata
     from ml.predictor import init_predictor
     from ml.demand_predictor import init_demand_predictor
+
+    async with async_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
     init_predictor()
     init_demand_predictor()
@@ -120,7 +130,29 @@ def _get_test_overrides() -> dict:
         return await _mock_user_with_token(token)
 
     async def _mock_current_user_with_ong(token: str = Depends(oauth2_scheme)):
-        return await _mock_user_with_token(token)
+        """Para rotas de ONG: tenta token real; senao fallback para usuario ong (que tem .ong)."""
+        try:
+            payload = decode_access_token(token)
+            user_id = payload.get("sub")
+            if user_id:
+                async with AsyncSessionLocal() as db:
+                    result = await db.execute(
+                        select(Usuario)
+                        .options(selectinload(Usuario.ong))
+                        .where(Usuario.id == int(user_id))
+                    )
+                    user = result.scalar_one_or_none()
+                    if user:
+                        return user
+        except Exception:
+            pass
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(Usuario)
+                .options(selectinload(Usuario.ong))
+                .where(Usuario.email == "ong@teste.com")
+            )
+            return result.scalar_one()
 
     async def _mock_doador(token: str = Depends(oauth2_scheme)):
         try:
@@ -160,17 +192,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
 app.include_router(auth_router)
 app.include_router(doacoes_router)
 app.include_router(historico_router)
 app.include_router(dashboard_router)
+app.include_router(ongs_router)
+app.include_router(notifications_router)
+app.include_router(admin_router)
 
 
-@app.get("/")
-async def root():
-    return {"message": "Alimenta.AI API"}
-
-
+# ── Health check (deve vir ANTES do catch-all SPA) ─────────────────────
 @app.get("/health")
 async def health_check():
     from database.connection import async_engine
@@ -201,7 +234,7 @@ async def health_check():
 
     # Check disk
     import shutil
-    total, used, free = shutil.disk_usage("/home/rick/alimenta-ai-clone/backend")
+    total, used, free = shutil.disk_usage(str(Path(__file__).resolve().parent))
     free_gb = free / (1024**3)
     status["disk_free_gb"] = round(free_gb, 2)
     if free_gb < 0.5:
@@ -213,3 +246,35 @@ async def health_check():
     from fastapi.responses import JSONResponse
     code = 200 if healthy else 503
     return JSONResponse(content=status, status_code=code)
+
+
+# ── Servir frontend exportado (SPA) ──────────────────────────────────────
+FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "Alimenta-AI" / "dist"
+
+@app.get("/")
+async def root():
+    index = FRONTEND_DIST / "index.html"
+    if index.exists():
+        return HTMLResponse(content=index.read_text())
+    return {"message": "Alimenta-IA API"}
+
+
+@app.get("/{path:path}")
+async def serve_spa(path: str):
+    # Arquivos estáticos (CSS, JS, imgs) — tenta servir direto
+    static_file = FRONTEND_DIST / path
+    if static_file.exists() and static_file.is_file():
+        from fastapi.responses import FileResponse
+        return FileResponse(static_file)
+
+    # Páginas HTML (ex: /donor → donor.html)
+    html_file = FRONTEND_DIST / f"{path}.html"
+    if html_file.exists():
+        return HTMLResponse(content=html_file.read_text())
+
+    # Fallback SPA: index.html para qualquer rota frontend
+    index = FRONTEND_DIST / "index.html"
+    if index.exists():
+        return HTMLResponse(content=index.read_text())
+
+    return {"message": "Not found"}

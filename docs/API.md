@@ -1,4 +1,4 @@
-# Alimenta.AI — Documentacao da API
+# Alimenta-IA — Documentacao da API
 
 Base URL: `http://localhost:8000`
 

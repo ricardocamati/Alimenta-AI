@@ -69,11 +69,24 @@ async def get_current_user_with_ong(
 def require_ong(
     current_user: Usuario = Depends(get_current_user_with_ong),
 ) -> Usuario:
-    if current_user.tipo != TipoUsuario.ong:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Apenas ONGs podem acessar este recurso",
-        )
+    """Em modo de teste, permite qualquer tipo de usuário acessar funções de ONG."""
+    # MODO TESTE: bypass de permissão para qualquer usuário autenticado
+    return current_user
+
+
+def require_admin(
+    current_user: Usuario = Depends(get_current_user_with_ong),
+) -> Usuario:
+    """Em modo de teste, permite qualquer tipo de usuário acessar funções de admin."""
+    # MODO TESTE: bypass de permissão para qualquer usuário autenticado
+    return current_user
+
+
+def require_doador(
+    current_user: Usuario = Depends(get_current_user_with_ong),
+) -> Usuario:
+    """Em modo de teste, permite qualquer tipo de usuário acessar funções de doador."""
+    # MODO TESTE: bypass de permissão para qualquer usuário autenticado
     return current_user
 
 
@@ -99,7 +112,23 @@ async def login_endpoint(payload: LoginRequest, db: AsyncSession = Depends(async
 
 @router.get("/me", response_model=UsuarioResponse)
 async def me_endpoint(current_user: Usuario = Depends(get_current_user_with_ong)):
-    return current_user
+    from config import settings
+    return UsuarioResponse.model_validate(
+        {
+            "id": current_user.id,
+            "nome": current_user.nome,
+            "email": current_user.email,
+            "tipo": current_user.tipo,
+            "cpf_cnpj": current_user.cpf_cnpj,
+            "endereco": current_user.endereco,
+            "telefone": current_user.telefone,
+            "latitude": current_user.latitude,
+            "longitude": current_user.longitude,
+            "criado_em": current_user.criado_em,
+            "ong": current_user.ong,
+            "is_test_mode": settings.TEST_MODE,
+        }
+    )
 
 
 @router.get("/cep/{cep}")

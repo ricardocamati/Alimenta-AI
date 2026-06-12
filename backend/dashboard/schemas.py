@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, Literal, Union
+from typing import Annotated, Any, Literal, Union
 
 from pydantic import BaseModel, Field
 
@@ -58,6 +58,13 @@ class DashboardONG(BaseModel):
     doacoes_pendentes: int
     distribuicao_categorias: dict[str, int]
     ultimas_doacoes: list[DoacaoResumo]
+    historico_semanal: list[dict[str, Any]] = []  # semana, quantidade_atendida
+
+
+class SemanaHistorico(BaseModel):
+    """Item do histórico semanal para o gráfico de linha."""
+    semana: str
+    quantidade_atendida: int
 
 
 class DashboardAdmin(BaseModel):

@@ -1,15 +1,32 @@
 import logging
-from datetime import date
+import os
+from datetime import date, timedelta
+from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 
-from database.models import Doacao, LogAFD, ONG, StatusDoacao, Urgencia, Usuario
+from database.models import (
+    CategoriaNotificacao,
+    Doacao,
+    LogAFD,
+    Notificacao,
+    ONG,
+    StatusDoacao,
+    TipoUsuario,
+    Urgencia,
+    Usuario,
+    HistoricoAtendimento,
+)
 from doacoes.schemas import DoacaoCreate
 from ml.predictor import UrgencyPredictor
 
 logger = logging.getLogger(__name__)
+
+# Diretorio raiz do backend (doacoes/ -> backend/)
+BACKEND_ROOT = Path(__file__).resolve().parent.parent
+UPLOADS_ROOT = BACKEND_ROOT / "uploads"
 
 
 async def _resolve_gps_doacao(
@@ -179,7 +196,11 @@ async def atualizar_status_doacao(
 ) -> Doacao | None:
     result = await db.execute(
         select(Doacao)
-        .options(selectinload(Doacao.logs), selectinload(Doacao.doador))
+        .options(
+            selectinload(Doacao.logs),
+            selectinload(Doacao.doador),
+            joinedload(Doacao.ong_matched).joinedload(ONG.usuario),
+        )
         .where(
             Doacao.id == doacao_id,
             Doacao.ong_matched_id == ong_id,
@@ -203,11 +224,160 @@ async def atualizar_status_doacao(
         descricao=observacao or f"Status atualizado para {novo_status} via API",
     )
     db.add(log)
+
+    # Q5.b: Apenas Reservar (matched->notificado) e Coletado (notificado->coletado).
+    # Q3.a+b: Notificar o doador quando a ONG reserva ou coleta.
+    if (
+        estado_anterior == StatusDoacao.matched.value
+        and status_enum == StatusDoacao.notificado
+        and doacao.doador_id is not None
+    ):
+        ong_nome = doacao.ong_matched.usuario.nome if (doacao.ong_matched and doacao.ong_matched.usuario) else "Uma ONG"
+        db.add(
+            Notificacao(
+                user_id=str(doacao.doador_id),
+                user_type=TipoUsuario.doador,
+                title=f"ONG {ong_nome} reservou sua doacao",
+                message=(
+                    f"Sua doacao de {doacao.tipo_alimento} ({doacao.quantidade} "
+                    f"{doacao.unidade_medida or 'kg'}) foi reservada. "
+                    f"Entre em contato para combinar a coleta."
+                ),
+                category=CategoriaNotificacao.status,
+                related_donation_id=doacao.id,
+                read=False,
+            )
+        )
+        logger.info("Notificacao de reserva enviada ao doador %s (doacao %s)", doacao.doador_id, doacao.id)
+    elif (
+        estado_anterior == StatusDoacao.notificado.value
+        and status_enum == StatusDoacao.coletado
+        and doacao.doador_id is not None
+    ):
+        db.add(
+            Notificacao(
+                user_id=str(doacao.doador_id),
+                user_type=TipoUsuario.doador,
+                title="Sua doacao foi coletada",
+                message=(
+                    f"A ONG coletou sua doacao de {doacao.tipo_alimento} "
+                    f"({doacao.quantidade} {doacao.unidade_medida or 'kg'}). "
+                    f"Obrigado por contribuir!"
+                ),
+                category=CategoriaNotificacao.status,
+                related_donation_id=doacao.id,
+                read=False,
+            )
+        )
+        logger.info("Notificacao de coleta enviada ao doador %s (doacao %s)", doacao.doador_id, doacao.id)
+
     await db.commit()
+
+    # Se status coletado, somar no historico_semanal da semana atual
+    # (fluxo atual do frontend e "Reservar -> Coletado" - botao "Confirmar Recebido" foi removido)
+    if status_enum == StatusDoacao.coletado:
+        await _atualizar_historico_confirmacao(db, doacao)
+
     # Recarrega com eager load para serializacao Pydantic
     result2 = await db.execute(
         select(Doacao)
-        .options(selectinload(Doacao.logs), selectinload(Doacao.doador))
+        .options(
+            selectinload(Doacao.logs),
+            selectinload(Doacao.doador),
+            joinedload(Doacao.ong_matched).joinedload(ONG.usuario),
+        )
         .where(Doacao.id == doacao_id)
     )
     return result2.scalar_one_or_none()
+
+
+async def deletar_doacao(
+    db: AsyncSession,
+    doacao_id: int,
+    doador_id: int,
+) -> Doacao | None:
+    """Hard delete: remove a doacao fisicamente do banco.
+
+    Cascade natural:
+    - logs_afd (ondelete=CASCADE) -> removidos juntos
+    - scores_matching (ondelete=CASCADE) -> removidos juntos
+    - notificacoes (ondelete=SET NULL) -> related_donation_id vira NULL
+
+    Tambem remove o arquivo de foto do disco se for /uploads/...
+    Retorna None se a doacao nao existe ou nao pertence ao doador.
+    """
+    result = await db.execute(
+        select(Doacao)
+        .options(selectinload(Doacao.logs), selectinload(Doacao.doador))
+        .where(Doacao.id == doacao_id, Doacao.doador_id == doador_id)
+    )
+    doacao = result.scalar_one_or_none()
+    if doacao is None:
+        return None
+
+    # Guardar info pra retorno e cleanup ANTES de deletar (senao ORM desanexa)
+    doacao_snapshot = doacao
+    foto_url = doacao.foto_url
+
+    # Remover foto do disco se for um upload local
+    if foto_url and foto_url.startswith("/uploads/"):
+        relative = foto_url.lstrip("/")  # "uploads/fotos_doacoes/abc.jpg"
+        filepath = BACKEND_ROOT / relative
+        try:
+            if filepath.is_file():
+                filepath.unlink()
+                logger.info("Foto %s removida do disco", filepath)
+            else:
+                logger.debug("Foto %s nao encontrada no disco (ja removida?)", filepath)
+        except OSError as e:
+            # Nao falhar o delete por causa de erro de IO
+            logger.warning("Erro ao remover foto %s: %s", filepath, e)
+
+    # Hard delete (cascade em logs_afd e scores_matching via FK)
+    await db.delete(doacao)
+    await db.commit()
+    logger.info(
+        "Doacao %s (tipo=%s) removida fisicamente pelo doador %s",
+        doacao_id, doacao_snapshot.tipo_alimento, doador_id,
+    )
+    return doacao_snapshot
+
+
+async def _atualizar_historico_confirmacao(db: AsyncSession, doacao: Doacao) -> None:
+    """Soma a quantidade da doacao confirmada no historico da semana atual."""
+    # Pegar segunda-feira desta semana (ISO week)
+    hoje = date.today()
+    semana = hoje - timedelta(days=hoje.weekday())
+    ong_id = doacao.ong_matched_id
+    if not ong_id:
+        logger.warning("Doacao %s confirmada mas sem ONG matched", doacao.id)
+        return
+
+    # Procura registro existente para esta semana + ONG
+    result = await db.execute(
+        select(HistoricoAtendimento)
+        .where(
+            HistoricoAtendimento.ong_id == ong_id,
+            HistoricoAtendimento.semana == semana,
+        )
+    )
+    registro = result.scalar_one_or_none()
+
+    if registro:
+        registro.quantidade_atendida += doacao.quantidade
+        logger.info(
+            "Historico ONG %s semana %s: +%s kg (total=%s)",
+            ong_id, semana, doacao.quantidade, registro.quantidade_atendida,
+        )
+    else:
+        novo = HistoricoAtendimento(
+            ong_id=ong_id,
+            semana=semana,
+            quantidade_atendida=doacao.quantidade,
+        )
+        db.add(novo)
+        logger.info(
+            "Historico ONG %s semana %s: criado com %s kg",
+            ong_id, semana, doacao.quantidade,
+        )
+    await db.commit()

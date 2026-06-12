@@ -87,8 +87,11 @@ class UsuarioResponse(BaseModel):
     cpf_cnpj: str | None = None
     endereco: str | None = None
     telefone: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
     criado_em: datetime
     ong: ONGResponse | None = None
+    is_test_mode: bool | None = None
 
     model_config = {"from_attributes": True}
 
