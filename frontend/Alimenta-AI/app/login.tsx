@@ -134,7 +134,11 @@ export default function LoginScreen() {
             onChangeText={setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
-            autoComplete="email"
+            autoComplete="off"
+            autoCorrect={false}
+            spellCheck={false}
+            textContentType="none"
+            importantForAutofill="no"
             returnKeyType="next"
             onSubmitEditing={() => { /* focus next field */ }}
           />
@@ -147,7 +151,11 @@ export default function LoginScreen() {
             secureTextEntry
             value={password}
             onChangeText={setPassword}
-            autoComplete="current-password"
+            autoComplete="off"
+            autoCorrect={false}
+            spellCheck={false}
+            textContentType="none"
+            importantForAutofill="no"
             returnKeyType="go"
             onSubmitEditing={handleLogin}
           />
