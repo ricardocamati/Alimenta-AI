@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
@@ -12,6 +12,14 @@ if DATABASE_URL.startswith("sqlite"):
         connect_args={"check_same_thread": False},
         echo=False,
     )
+
+    # Habilitar FK enforcement no SQLite (que é OFF por padrão!)
+    # Sem isso, ON DELETE CASCADE das FKs não dispara e ficam registros órfãos.
+    @event.listens_for(engine, "connect")
+    def _enable_sqlite_fk(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 else:
     engine = create_engine(DATABASE_URL, echo=False)
 

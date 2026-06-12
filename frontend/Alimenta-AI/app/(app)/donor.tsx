@@ -362,7 +362,7 @@ export default function DonorScreen() {
       photoId = 'oil';
     } else if (tipo.includes('grão') || tipo.includes('feijão') || tipo.includes('lentilha') || tipo.includes('ervilha') || tipo.includes('soja')) {
       photoId = 'grain';
-    } else if (tipo.includes('fruta') || tipo.includes('maçã') || tipo.includes('pera') || tipo.includes('uva') || tipo.includes('morango') || tipo.includes('melancia')) {
+    } else if (tipo.includes('fruta') || tipo.includes('maçã') || tipo.includes('maca') || tipo.includes('apple') || tipo.includes('pera') || tipo.includes('uva') || tipo.includes('morango') || tipo.includes('melancia') || tipo.includes('banana') || tipo.includes('laranja') || tipo.includes('manga') || tipo.includes('abacaxi') || tipo.includes('goiaba')) {
       photoId = 'fruit';
     } else if (tipo.includes('verdura') || tipo.includes('legume') || tipo.includes('vegetal') || tipo.includes('alface') || tipo.includes('couve') || tipo.includes('cenoura') || tipo.includes('batata')) {
       photoId = 'vegetables';
