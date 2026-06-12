@@ -184,7 +184,9 @@ async def get_ong_dashboard(db: AsyncSession, user: Usuario) -> DashboardONG:
         )
     )
     media_qtd = round(float(media_qtd), 2) if media_qtd else 0.0
-    alerta = demanda_prevista > media_qtd * 1.3 if media_qtd > 0 else False
+    # Alerta de escassez so dispara se houver doacoes pendentes que a ONG
+    # ainda nao reservou/coletou. Sem pendencia, nao ha escassez ativa.
+    alerta = (pendentes > 0) and (demanda_prevista > media_qtd * 1.3 if media_qtd > 0 else False)
 
     cat_result = await db.execute(
         select(Doacao.categoria, func.count())
