@@ -778,25 +778,29 @@ export default function DonorScreen() {
                         <ThemedText type="smallBold" style={{ flex: 1 }}>{donation.tipo_alimento}</ThemedText>
                         <Pressable
                           onPress={() => {
-                            Alert.alert(
-                              'Excluir doacao',
-                              `Tem certeza que deseja excluir "${donation.tipo_alimento}"? O registro sera marcado como cancelado.`,
-                              [
-                                { text: 'Cancelar', style: 'cancel' },
-                                {
-                                  text: 'Excluir',
-                                  style: 'destructive',
-                                  onPress: async () => {
-                                    try {
-                                      await deleteDoacao(donation.id);
-                                      await refreshDash();
-                                    } catch (err) {
-                                      Alert.alert('Erro', err instanceof Error ? err.message : 'Falha ao excluir doacao');
-                                    }
-                                  },
-                                },
-                              ]
-                            );
+                            const msg = `Tem certeza que deseja excluir "${donation.tipo_alimento}"? O registro sera marcado como cancelado.`;
+                            const doDelete = async () => {
+                              try {
+                                await deleteDoacao(donation.id);
+                                await refreshDash();
+                              } catch (err) {
+                                Alert.alert('Erro', err instanceof Error ? err.message : 'Falha ao excluir doacao');
+                              }
+                            };
+                            if (Platform.OS === 'web') {
+                              if (typeof window !== 'undefined' && window.confirm(msg)) {
+                                doDelete();
+                              }
+                            } else {
+                              Alert.alert(
+                                'Excluir doacao',
+                                msg,
+                                [
+                                  { text: 'Cancelar', style: 'cancel' },
+                                  { text: 'Excluir', style: 'destructive', onPress: doDelete },
+                                ]
+                              );
+                            }
                           }}
                           hitSlop={8}
                           style={({ pressed }) => [styles.deleteDonationBtn, pressed && { opacity: 0.5 }]}
