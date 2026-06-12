@@ -1,5 +1,7 @@
 import logging
+import os
 from datetime import date, timedelta
+from pathlib import Path
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +12,10 @@ from doacoes.schemas import DoacaoCreate
 from ml.predictor import UrgencyPredictor
 
 logger = logging.getLogger(__name__)
+
+# Diretorio raiz do backend (doacoes/ -> backend/)
+BACKEND_ROOT = Path(__file__).resolve().parent.parent
+UPLOADS_ROOT = BACKEND_ROOT / "uploads"
 
 
 async def _resolve_gps_doacao(
@@ -223,10 +229,14 @@ async def deletar_doacao(
     doacao_id: int,
     doador_id: int,
 ) -> Doacao | None:
-    """Soft delete: muda status para 'cancelado'.
+    """Hard delete: remove a doacao fisicamente do banco.
 
-    Preserva a linha no banco para manter histórico/dashboard/auditoria
-    (logs AFD, scores de matching, FKs com ON DELETE SET NULL).
+    Cascade natural:
+    - logs_afd (ondelete=CASCADE) -> removidos juntos
+    - scores_matching (ondelete=CASCADE) -> removidos juntos
+    - notificacoes (ondelete=SET NULL) -> related_donation_id vira NULL
+
+    Tambem remove o arquivo de foto do disco se for /uploads/...
     Retorna None se a doacao nao existe ou nao pertence ao doador.
     """
     result = await db.execute(
@@ -238,29 +248,32 @@ async def deletar_doacao(
     if doacao is None:
         return None
 
-    # Se ja esta cancelada, idempotente: retorna sem erro
-    if doacao.status == StatusDoacao.cancelado:
-        logger.info("Doacao %s ja estava cancelada (idempotente)", doacao.id)
-        return doacao
+    # Guardar info pra retorno e cleanup ANTES de deletar (senao ORM desanexa)
+    doacao_snapshot = doacao
+    foto_url = doacao.foto_url
 
-    estado_anterior = doacao.status.value
-    doacao.status = StatusDoacao.cancelado
-    log = LogAFD(
-        doacao_id=doacao.id,
-        estado_anterior=estado_anterior,
-        estado_novo=StatusDoacao.cancelado.value,
-        descricao=f"Doacao cancelada/excluida pelo doador (estado anterior: {estado_anterior})",
-    )
-    db.add(log)
+    # Remover foto do disco se for um upload local
+    if foto_url and foto_url.startswith("/uploads/"):
+        relative = foto_url.lstrip("/")  # "uploads/fotos_doacoes/abc.jpg"
+        filepath = BACKEND_ROOT / relative
+        try:
+            if filepath.is_file():
+                filepath.unlink()
+                logger.info("Foto %s removida do disco", filepath)
+            else:
+                logger.debug("Foto %s nao encontrada no disco (ja removida?)", filepath)
+        except OSError as e:
+            # Nao falhar o delete por causa de erro de IO
+            logger.warning("Erro ao remover foto %s: %s", filepath, e)
+
+    # Hard delete (cascade em logs_afd e scores_matching via FK)
+    await db.delete(doacao)
     await db.commit()
-
-    # Recarrega com eager load para serializacao Pydantic
-    result2 = await db.execute(
-        select(Doacao)
-        .options(selectinload(Doacao.logs), selectinload(Doacao.doador))
-        .where(Doacao.id == doacao_id)
+    logger.info(
+        "Doacao %s (tipo=%s) removida fisicamente pelo doador %s",
+        doacao_id, doacao_snapshot.tipo_alimento, doador_id,
     )
-    return result2.scalar_one()
+    return doacao_snapshot
 
 
 async def _atualizar_historico_confirmacao(db: AsyncSession, doacao: Doacao) -> None:

@@ -778,7 +778,7 @@ export default function DonorScreen() {
                         <ThemedText type="smallBold" style={{ flex: 1 }}>{donation.tipo_alimento}</ThemedText>
                         <Pressable
                           onPress={() => {
-                            const msg = `Tem certeza que deseja excluir "${donation.tipo_alimento}"? O registro sera marcado como cancelado.`;
+                            const msg = `Tem certeza que deseja excluir "${donation.tipo_alimento}" permanentemente? O registro e a foto serao removidos.`;
                             const doDelete = async () => {
                               try {
                                 await deleteDoacao(donation.id);
