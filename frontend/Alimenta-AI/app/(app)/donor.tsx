@@ -14,7 +14,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -87,24 +86,11 @@ export default function DonorScreen() {
   const [photoAsset, setPhotoAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [fotoUrl, setFotoUrl] = useState<string | null>(null);
   const [loadingPhoto, setLoadingPhoto] = useState(false);
-  const [latitude, setLatitude] = useState<number | null>(user?.latitude ?? null);
-  const [longitude, setLongitude] = useState<number | null>(user?.longitude ?? null);
-  const [locationLabel, setLocationLabel] = useState(
-    user?.latitude && user?.longitude
-      ? `Lat: ${user.latitude.toFixed(5)} • Lng: ${user.longitude.toFixed(5)}`
-      : 'Localização ainda não cadastrada'
-  );
-  const [loadingLocation, setLoadingLocation] = useState(false);
 
   // Form Submission feedback states
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-
-  // --- OTHER STATES ---
-
-  // Filter notifications for this specific donor (ja vem filtrado do backend pelo user_id)
-  const hasLocation = latitude !== null && longitude !== null;
 
   const uploadFoto = async (photoAsset: ImagePicker.ImagePickerAsset): Promise<string> => {
     const formData = new FormData();
@@ -242,56 +228,9 @@ export default function DonorScreen() {
     }
   };
 
-  const captureLocation = async () => {
-    try {
-      setLoadingLocation(true);
-      setErrorMsg('');
-
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (!permission.granted) {
-        setErrorMsg('Permissão de localização negada. Habilite o GPS para continuar.');
-        return;
-      }
-
-      const position = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-
-      const { latitude: lat, longitude: lng } = position.coords;
-      setLatitude(lat);
-      setLongitude(lng);
-
-      try {
-        const [resolved] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
-        if (resolved) {
-          const city = resolved.city || resolved.subregion || resolved.region || 'Localidade';
-          const region = resolved.region || '';
-          const street = resolved.street || resolved.name || '';
-          setLocationLabel([street, city, region].filter(Boolean).join(' • '));
-        } else {
-          setLocationLabel('Localização capturada com sucesso');
-        }
-      } catch {
-        setLocationLabel('Localização capturada com sucesso');
-      }
-    } catch {
-      Alert.alert('Erro de localização', 'Não foi possível obter sua localização atual.');
-    } finally {
-      setLoadingLocation(false);
-    }
-  };
-
   const handleRegisterDonation = async () => {
     if (!fotoUrl) {
       setErrorMsg('Capture ou selecione uma foto real do alimento antes de publicar.');
-      return;
-    }
-
-    const capturedLatitude = latitude;
-    const capturedLongitude = longitude;
-
-    if (capturedLatitude === null || capturedLongitude === null) {
-      setErrorMsg('Capture a localização real do usuário antes de publicar.');
       return;
     }
 
@@ -306,8 +245,6 @@ export default function DonorScreen() {
         unidade_medida: unit,
         data_validade: parseBRDate(expiryDateDisplay) || expiryDateRaw,
         foto_url: fotoUrl || '',
-        latitude: capturedLatitude,
-        longitude: capturedLongitude,
       });
       
       setLoading(false);
@@ -325,9 +262,6 @@ export default function DonorScreen() {
       setExpiryDateDisplay(toDisplayDate(tomorrowReset.toISOString().split('T')[0]));
       setPhotoAsset(null);
       setFotoUrl(null);
-      setLatitude(null);
-      setLongitude(null);
-      setLocationLabel('Localização ainda não cadastrada');
       setFormStep(1);
       
       setTimeout(() => setSuccessMsg(''), 3000);
@@ -628,64 +562,6 @@ export default function DonorScreen() {
           {formStep === 3 && (
             <View style={styles.stepWrapper}>
               <ThemedText type="smallBold" style={{ color: '#3c87f7' }}>Revisão e Captura de Metadados</ThemedText>
-
-              <ThemedView type="backgroundSelected" style={styles.gpsDisplayBox}>
-                <View style={styles.gpsHeaderRow}>
-                  <SymbolView name="location.fill" size={24} tintColor="#4caf50" />
-                  <View style={{ flex: 1, marginLeft: Spacing.two }}>
-                    <ThemedText type="smallBold">Localização do doador</ThemedText>
-                  </View>
-                </View>
-
-                {hasLocation ? (
-                  <>
-                    <View style={styles.locationResultBox}>
-                      <ThemedText type="smallBold">📍 Usando localização cadastrada</ThemedText>
-                      <ThemedText type="code" style={[styles.locationCoordsText, { marginTop: 4, opacity: 0.7 }]}>
-                        O endereço e coordenadas do seu perfil serão usados para o matching com ONGs.
-                      </ThemedText>
-                    </View>
-                    <Pressable
-                      style={[styles.locationCaptureBtn, { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#4caf50', marginTop: Spacing.two }]}
-                      onPress={captureLocation}
-                      disabled={loadingLocation}
-                    >
-                      {loadingLocation ? (
-                        <ActivityIndicator color="#4caf50" size="small" />
-                      ) : (
-                        <SymbolView name="arrow.triangle.2.circlepath" size={14} tintColor="#4caf50" />
-                      )}
-                      <ThemedText type="smallBold" style={{ color: '#4caf50' }}>
-                        {loadingLocation ? 'Atualizando…' : 'Alterar localização'}
-                      </ThemedText>
-                    </Pressable>
-                  </>
-                ) : (
-                  <>
-                    <Pressable
-                      style={styles.locationCaptureBtn}
-                      onPress={captureLocation}
-                      disabled={loadingLocation}
-                    >
-                      {loadingLocation ? (
-                        <ActivityIndicator color="#ffffff" size="small" />
-                      ) : (
-                        <SymbolView name="location.fill" size={16} tintColor="#ffffff" />
-                      )}
-                      <ThemedText type="smallBold" style={{ color: '#ffffff' }}>
-                        Adicionar localização atual
-                      </ThemedText>
-                    </Pressable>
-
-                    <View style={styles.locationResultBox}>
-                      <ThemedText type="smallBold">{locationLabel}</ThemedText>
-                      <ThemedText type="code" style={styles.locationCoordsText}>
-                        Nenhuma coordenada cadastrada.
-                      </ThemedText>
-                    </View>
-                  </>
-                )}
-              </ThemedView>
 
               {/* Predicted Urgency Simulation Preview */}
               <ThemedView type="backgroundSelected" style={styles.modelPreviewCard}>
@@ -1145,46 +1021,6 @@ const styles = StyleSheet.create({
   galleryBtnText: {
     color: '#3c87f7',
     marginLeft: Spacing.one,
-  },
-  gpsDisplayBox: {
-    padding: Spacing.three,
-    borderRadius: Spacing.two,
-    borderWidth: 1,
-    borderColor: '#4caf5055',
-    gap: Spacing.two,
-  },
-  gpsHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  gpsStatusBadge: {
-    backgroundColor: '#4caf50',
-    paddingVertical: 2,
-    paddingHorizontal: Spacing.two,
-    borderRadius: Spacing.one,
-  },
-  gpsStatusPending: {
-    backgroundColor: '#ff9800',
-  },
-  locationCaptureBtn: {
-    minHeight: 46,
-    borderRadius: Spacing.two,
-    backgroundColor: '#4caf50',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.three,
-  },
-  locationResultBox: {
-    borderRadius: Spacing.two,
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-    padding: Spacing.two,
-  },
-  locationCoordsText: {
-    fontSize: 11,
-    marginTop: 2,
-    opacity: 0.75,
   },
   modelPreviewCard: {
     borderRadius: Spacing.two,
